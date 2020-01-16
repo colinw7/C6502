@@ -33,7 +33,9 @@ class C6502 {
   bool isDebug() const { return debug_; }
   void setDebug(bool b) { debug_ = b; }
 
-  //---
+  //------
+
+  // Registers
 
   inline uchar A() const { return A_; }
   inline void setA(uchar c) { A_ = c; }
@@ -53,7 +55,9 @@ class C6502 {
   inline ushort PC() const { return PC_; }
   inline void setPC(ushort a) { PC_ = a; }
 
-  //---
+  //------
+
+  // Flags
 
   inline bool Cflag() const { return SR_ & 0x01; }
   inline void setCFlag(bool b) { SR_ = (b ? SR_ | 0x01 : SR_ & ~0x01); }
@@ -86,6 +90,16 @@ class C6502 {
 
   inline void setNZCVFlags(bool C, bool V) {
     SR_ |= ((A() & 0x80) | (A() & 0x02) | C*0x01 | V*0x40); }
+
+  //------
+
+  // Ticks
+
+  inline void incT(uchar n) { t_ += n; }
+
+  //------
+
+  // Memory
 
   inline uchar readByte() { return readByte(PC_); }
 
@@ -128,6 +142,10 @@ class C6502 {
     memcpy(&mem_[addr], data, len);
   }
 
+  //---
+
+  // Operations
+
   // Arithmetic Shift Left (Zero Fill)
   inline void aslOp(uchar c) { bool C = c & 0x80; c <<= 1; setA(c); setNZCFlags(C); }
 
@@ -158,9 +176,12 @@ class C6502 {
     setA(res); setNZCVFlags(C, V);
   }
 
+  //------
+
+  // TODO: remove
   void load64Rom();
 
-  void step();
+  //------
 
   void reset() {
     PC_ = 0;
@@ -172,17 +193,47 @@ class C6502 {
     t_  = 0;
   }
 
+  //------
+
+  // System vectors
+
+  // Non-Maskable Interrupt Hardware Vector
   inline ushort NMI() const { return getWord(0xFFFA); }
+  // System Reset (RES) Hardware Vector
   inline ushort RES() const { return getWord(0xFFFC); }
+  // askable Interrupt Request and Break Hardware Vectors
   inline ushort IRQ() const { return getWord(0xFFFE); }
+
+  void resetNMI   ();
+  void resetSystem();
+  void resetIRQ   ();
+  void resetBRK   ();
+
+  //------
+
+  // assemble
 
   bool assemble(ushort addr, std::istream &is);
 
+  //------
+
+  // run
+
+  void step();
+
   bool run(ushort addr);
+
+  //------
+
+  // disassemble
 
   bool disassemble(ushort addr, std::ostream &os=std::cout) const;
 
   bool disassembleAddr(ushort addr1, std::string &str, int &len) const;
+
+  //------
+
+  // print
 
   void print(ushort addr, int len=64);
 

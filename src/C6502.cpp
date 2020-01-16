@@ -24,6 +24,71 @@
 C6502::
 C6502()
 {
+  setIFlag(true); // interrupts disabled
+}
+
+//---
+
+// NMI interrupt
+void
+C6502::
+resetNMI()
+{
+  // save state for RTI
+  pushWord(PC() + 2);
+  pushByte(SR());
+
+  // jump to NMI interrupt vector
+  setPC(NMI());
+
+  incT(7);
+}
+
+// Reset
+void
+C6502::
+resetSystem()
+{
+  // jump to Reset interrupt vector (no save)
+  setPC(RES());
+
+  incT(7);
+}
+
+// IRQ interrupt (maskable)
+void
+C6502::
+resetIRQ()
+{
+  if (! Iflag())
+    return;
+
+  // save state for RTI
+  pushWord(PC() + 2);
+  pushByte(SR());
+
+  setBFlag(true);
+
+  // jump to IRQ interrupt vector
+  setPC(IRQ());
+
+  incT(7);
+}
+
+void
+C6502::
+resetBRK()
+{
+  // save state for RTI
+  pushWord(PC() + 2);
+  pushByte(SR());
+
+  setBFlag(false);
+
+  // jump to IRQ interrupt vector
+  setPC(IRQ());
+
+  incT(7);
 }
 
 //---
@@ -72,13 +137,7 @@ step()
 
   switch (c) {
     case 0x00: { // BRK implicit
-      pushWord(PC() + 2);
-      pushByte(SR());
-
-      setIFlag(true);
-
-      t_ += 7;
-
+      resetBRK();
       break;
     }
 
@@ -86,140 +145,140 @@ step()
 
     // AND ...
     case 0x21: { // AND (indirect,X)
-      andOp(memIndexedIndirectX(readByte())); t_ += 6; break;
+      andOp(memIndexedIndirectX(readByte())); incT(6); break;
     }
     case 0x25: { // AND zero page
-      andOp(getByte(readByte())); t_ += 3; break;
+      andOp(getByte(readByte())); incT(3); break;
     }
     case 0x29: { // AND immediate
-      andOp(readByte()); t_ += 2; break;
+      andOp(readByte()); incT(2); break;
     }
     case 0x2D: { // AND absolute
-      andOp(getByte(readWord())); t_ += 4; break;
+      andOp(getByte(readWord())); incT(4); break;
     }
     case 0x31: { // AND (indirect),Y
-      andOp(memIndirectIndexedY(readByte())); t_ += 5; break;
+      andOp(memIndirectIndexedY(readByte())); incT(5); break;
     }
     case 0x35: { // AND zero page,X
-      andOp(getByte(readByte() + X())); t_ += 4; break;
+      andOp(getByte(readByte() + X())); incT(4); break;
     }
     case 0x39: { // AND absolute,Y
-      andOp(getByte(readWord() + Y())); t_ += 4; break;
+      andOp(getByte(readWord() + Y())); incT(4); break;
     }
     case 0x3D: { // AND absolute,X
-      andOp(getByte(readWord() + X())); t_ += 4; break;
+      andOp(getByte(readWord() + X())); incT(4); break;
     }
 
     //---
 
     // ORA ...
     case 0x01: { // ORA (indirect,X)
-      orOp(memIndexedIndirectX(readByte())); t_ += 6; break;
+      orOp(memIndexedIndirectX(readByte())); incT(6); break;
     }
     case 0x05: { // ORA zero page
-      orOp(getByte(readByte())); t_ += 3; break;
+      orOp(getByte(readByte())); incT(3); break;
     }
     case 0x09: { // ORA immediate
-      orOp(readByte()); t_ += 2; break;
+      orOp(readByte()); incT(2); break;
     }
     case 0x0D: { // ORA absolute
-      orOp(getByte(readWord())); t_ += 4; break;
+      orOp(getByte(readWord())); incT(4); break;
     }
     case 0x11: { // ORA (indirect),Y
-      orOp(memIndirectIndexedY(readByte())); t_ += 5; break;
+      orOp(memIndirectIndexedY(readByte())); incT(5); break;
     }
     case 0x15: { // ORA zero page,X
-      orOp(getByte(readByte() + X())); t_ += 4; break;
+      orOp(getByte(readByte() + X())); incT(4); break;
     }
     case 0x19: { // ORA absolute,Y
-      orOp(getByte(readWord() + Y())); t_ += 4; break;
+      orOp(getByte(readWord() + Y())); incT(4); break;
     }
     case 0x1D: { // ORA absolute,X
-      orOp(getByte(readWord() + X())); t_ += 4; break;
+      orOp(getByte(readWord() + X())); incT(4); break;
     }
 
     //---
 
     // EOR ...
     case 0x41: { // EOR (indirect,X)
-      eorOp(memIndexedIndirectX(readByte())); t_ += 6; break;
+      eorOp(memIndexedIndirectX(readByte())); incT(6); break;
     }
     case 0x45: { // EOR zero page
-      eorOp(getByte(readByte())); t_ += 3; break;
+      eorOp(getByte(readByte())); incT(3); break;
     }
     case 0x49: { // EOR immediate
-      eorOp(readByte()); t_ += 2; break;
+      eorOp(readByte()); incT(2); break;
     }
     case 0x4D: { // EOR absolute
-      eorOp(getByte(readWord())); t_ += 4; break;
+      eorOp(getByte(readWord())); incT(4); break;
     }
     case 0x51: { // EOR (indirect),Y
-      eorOp(memIndirectIndexedY(readByte())); t_ += 5; break;
+      eorOp(memIndirectIndexedY(readByte())); incT(5); break;
     }
     case 0x55: { // EOR zero page,X
-      eorOp(getByte(readByte() + X())); t_ += 4; break;
+      eorOp(getByte(readByte() + X())); incT(4); break;
     }
     case 0x59: { // EOR absolute,Y
-      eorOp(getByte(readWord() + Y())); t_ += 4; break;
+      eorOp(getByte(readWord() + Y())); incT(4); break;
     }
     case 0x5D: { // EOR absolute,X
-      eorOp(getByte(readWord() + X())); t_ += 4; break;
+      eorOp(getByte(readWord() + X())); incT(4); break;
     }
 
     //---
 
     // ADC ...
     case 0x61: { // ADC (indirect,X)
-      adcOp(memIndexedIndirectX(readByte())); t_ += 6; break;
+      adcOp(memIndexedIndirectX(readByte())); incT(6); break;
     }
     case 0x65: { // ADC zero page
-      adcOp(getByte(readByte())); t_ += 3; break;
+      adcOp(getByte(readByte())); incT(3); break;
     }
     case 0x69: { // ADC immediate
-      adcOp(readByte()); t_ += 2; break;
+      adcOp(readByte()); incT(2); break;
     }
     case 0x6D: { // ADC absolute
-      adcOp(getByte(readWord())); t_ += 4; break;
+      adcOp(getByte(readWord())); incT(4); break;
     }
     case 0x71: { // ADC (indirect),Y
-      adcOp(memIndirectIndexedY(readByte())); t_ += 5; break;
+      adcOp(memIndirectIndexedY(readByte())); incT(5); break;
     }
     case 0x75: { // ADC zero page,X
-      adcOp(getByte(readByte() + X())); t_ += 4; break;
+      adcOp(getByte(readByte() + X())); incT(4); break;
     }
     case 0x79: { // ADC absolute,Y
-      adcOp(getByte(readWord() + Y())); t_ += 4; break;
+      adcOp(getByte(readWord() + Y())); incT(4); break;
     }
     case 0x7D: { // ADC absolute,X
-      adcOp(getByte(readWord() + X())); t_ += 4; break;
+      adcOp(getByte(readWord() + X())); incT(4); break;
     }
 
     //---
 
     // SBC ...
     case 0xE1: { // SBC (indirect,X)
-      sbcOp(memIndexedIndirectX(readByte())); t_ += 6; break;
+      sbcOp(memIndexedIndirectX(readByte())); incT(6); break;
     }
     case 0xE5: { // SBC zero page
-      sbcOp(getByte(readByte())); t_ += 3; break;
+      sbcOp(getByte(readByte())); incT(3); break;
     }
     case 0xE9: { // SBC immediate
-      sbcOp(readByte()); t_ += 2; break;
+      sbcOp(readByte()); incT(2); break;
     }
     case 0xED: { // SBC absolute
-      sbcOp(getByte(readWord())); t_ += 4; break;
+      sbcOp(getByte(readWord())); incT(4); break;
     }
     case 0xF1: { // SBC (indirect),Y
-      sbcOp(memIndirectIndexedY(readByte())); t_ += 5; break;
+      sbcOp(memIndirectIndexedY(readByte())); incT(5); break;
     }
     case 0xF5: { // SBC zero page,X
-      sbcOp(getByte(readByte() + X())); t_ += 4; break;
+      sbcOp(getByte(readByte() + X())); incT(4); break;
     }
     case 0xF9: { // SBC absolute,Y
-      sbcOp(getByte(readWord() + Y())); t_ += 4; break;
+      sbcOp(getByte(readWord() + Y())); incT(4); break;
     }
     case 0xFD: { // SBC absolute,X
-      sbcOp(getByte(readWord() + X())); t_ += 4; break;
+      sbcOp(getByte(readWord() + X())); incT(4); break;
     }
 
     //---
@@ -227,117 +286,101 @@ step()
     // Bit functions
 
     case 0x06: { // ASL zero page
-      aslOp(getByte(readByte())); t_ += 5; break;
+      aslOp(getByte(readByte())); incT(5); break;
     }
     case 0x0A: { // ASL A
-      aslOp(readByte()); t_ += 2; break;
+      aslOp(readByte()); incT(2); break;
     }
     case 0x0E: { // ASL absolute
-      aslOp(getByte(readWord())); t_ += 6; break;
+      aslOp(getByte(readWord())); incT(6); break;
     }
     case 0x16: { // ASL zero page,X
-      aslOp(getByte(readByte() + X())); t_ += 6; break;
+      aslOp(getByte(readByte() + X())); incT(6); break;
     }
     case 0x1E: { // ASL absolute,X
-      aslOp(getByte(readWord() + X())); t_ += 7; break;
+      aslOp(getByte(readWord() + X())); incT(7); break;
     }
 
     //-
 
     case 0x26: { // ROL zero page
-      rolOp(getByte(readByte())); t_ += 5; break;
+      rolOp(getByte(readByte())); incT(5); break;
     }
     case 0x2A: { // ROL A
-      rolOp(readByte()); t_ += 2; break;
+      rolOp(readByte()); incT(2); break;
     }
     case 0x2E: { // ROL absolute
-      rolOp(getByte(readWord())); t_ += 6; break;
+      rolOp(getByte(readWord())); incT(6); break;
     }
     case 0x36: { // ROL zero page,X
-      rolOp(getByte(readByte() + X())); t_ += 6; break;
+      rolOp(getByte(readByte() + X())); incT(6); break;
     }
     case 0x3E: { // ROL absolute,X
-      rolOp(getByte(readWord() + X())); t_ += 7; break;
+      rolOp(getByte(readWord() + X())); incT(7); break;
     }
 
     //-
 
     case 0x46: { // LSR zero page
-      lsrOp(getByte(readByte())); t_ += 5; break;
+      lsrOp(getByte(readByte())); incT(5); break;
     }
     case 0x4A: { // LSR A
-      lsrOp(readByte()); t_ += 2; break;
+      lsrOp(readByte()); incT(2); break;
     }
     case 0x4E: { // LSR absolute
-      lsrOp(getByte(readWord())); t_ += 6; break;
+      lsrOp(getByte(readWord())); incT(6); break;
     }
     case 0x56: { // LSR zero page,X
-      lsrOp(getByte(readByte() + X())); t_ += 6; break;
+      lsrOp(getByte(readByte() + X())); incT(6); break;
     }
     case 0x5E: { // LSR absolute,X
-      lsrOp(getByte(readWord() + X())); t_ += 7; break;
+      lsrOp(getByte(readWord() + X())); incT(7); break;
     }
 
     //-
 
     case 0x66: { // ROR zero page
-      rorOp(getByte(readByte())); t_ += 5; break;
+      rorOp(getByte(readByte())); incT(5); break;
     }
     case 0x6A: { // ROR A
-      rorOp(readByte()); t_ += 2; break;
+      rorOp(readByte()); incT(2); break;
     }
     case 0x6E: { // ROR absolute
-      rorOp(getByte(readWord())); t_ += 6; break;
+      rorOp(getByte(readWord())); incT(6); break;
     }
     case 0x76: { // ROR zero page,X
-      rorOp(getByte(readByte() + X())); t_ += 6; break;
+      rorOp(getByte(readByte() + X())); incT(6); break;
     }
     case 0x7E: { // ROR absolute,X
-      rorOp(getByte(readWord() + X())); t_ += 7; break;
+      rorOp(getByte(readWord() + X())); incT(7); break;
     }
 
     //-
 
     // BIT...
     case 0x24: { // BIT zero page
-      auto c1 = getByte(readByte()) & 0xC0; setSR(SR() & c1); t_ += 3; break;
+      auto c1 = getByte(readByte()) & 0xC0; setSR(SR() & c1); incT(3); break;
     }
     case 0x2C: { // BIT absolute
-      auto c1 = getByte(readWord()) & 0xC0; setSR(SR() & c1); t_ += 4; break;
+      auto c1 = getByte(readWord()) & 0xC0; setSR(SR() & c1); incT(4); break;
     }
 
     //---
 
     case 0x08: { // PHP implied (Push Processor Status)
-      pushByte(SR());
-
-      t_ += 3;
-
-      break;
+      pushByte(SR()); incT(3); break;
     }
 
     case 0x28: { // PLP implied (Pull Processor Status)
-      setSR(popByte());
-
-      t_ += 4;
-
-      break;
+      setSR(popByte()); incT(4); break;
     }
 
     case 0x48: { // PHA implied (Push A)
-      pushByte(A());
-
-      t_ += 3;
-
-      break;
+      pushByte(A()); incT(3); break;
     }
 
     case 0x68: { // PLA implied (Pull A)
-      setA(popByte());
-
-      t_ += 3;
-
-      break;
+      setA(popByte()); incT(3); break;
     }
 
     //---
@@ -350,7 +393,7 @@ step()
       if (! Nflag())
         setPC(PC() + d);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
@@ -360,7 +403,7 @@ step()
 
       setPC(readWord());
 
-      t_ += 6;
+      incT(6);
 
       break;
     }
@@ -371,7 +414,7 @@ step()
       if (Nflag())
         setPC(PC() + d);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
@@ -382,7 +425,7 @@ step()
       if (! Vflag())
         setPC(PC() + d);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
@@ -393,7 +436,7 @@ step()
       if (Vflag())
         setPC(PC() + d);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
@@ -404,7 +447,7 @@ step()
       if (! Cflag())
         setPC(PC() + d);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
@@ -415,7 +458,7 @@ step()
       if (Cflag())
         setPC(PC() + d);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
@@ -426,7 +469,7 @@ step()
       if (! Zflag())
         setPC(PC() + d);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
@@ -437,24 +480,24 @@ step()
       if (Zflag())
         setPC(PC() + d);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
 
     case 0x4C: { // JMP absolute
-      setPC(readWord()); t_ += 3; break;
+      setPC(readWord()); incT(3); break;
     }
 
     case 0x6C: { // JMP indirect (???)
-      setPC(getWord(readWord())); t_ += 3; break;
+      setPC(getWord(readWord())); incT(3); break;
     }
 
     case 0x40: { // RTI (Return from Interrupt)
       setSR(popByte());
       setPC(popWord());
 
-      t_ += 6;
+      incT(6);
 
       break;
     }
@@ -462,7 +505,7 @@ step()
     case 0x60: { // RTS (Return from Subroutine)
       setPC(popWord());
 
-      t_ += 6;
+      incT(6);
 
       break;
     }
@@ -477,7 +520,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
@@ -486,7 +529,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 3;
+      incT(3);
 
       break;
     }
@@ -495,7 +538,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 4;
+      incT(4);
 
       break;
     }
@@ -506,7 +549,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
@@ -515,7 +558,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 3;
+      incT(3);
 
       break;
     }
@@ -524,7 +567,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 4;
+      incT(4);
 
       break;
     }
@@ -535,7 +578,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 5;
+      incT(5);
 
       break;
     }
@@ -544,7 +587,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 3;
+      incT(3);
 
       break;
     }
@@ -553,7 +596,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 2;
+      incT(2);
 
       break;
     }
@@ -562,7 +605,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 4;
+      incT(4);
 
       break;
     }
@@ -571,7 +614,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 5;
+      incT(5);
 
       break;
     }
@@ -580,7 +623,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 4;
+      incT(4);
 
       break;
     }
@@ -589,7 +632,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 4;
+      incT(4);
 
       break;
     }
@@ -598,7 +641,7 @@ step()
 
       setNZCFlags(c2, C);
 
-      t_ += 4;
+      incT(4);
 
       break;
     }
@@ -606,59 +649,31 @@ step()
     //---
 
     case 0x18: { // CLC (Clear carry)
-      setCFlag(false);
-
-      t_ += 2;
-
-      break;
+      setCFlag(false); incT(2); break;
     }
 
     case 0x38: { // SEC (Set carry)
-      setCFlag(true);
-
-      t_ += 2;
-
-      break;
+      setCFlag(true); incT(2); break;
     }
 
     case 0x58: { // CLI (Clear Interrupt Disable)
-      setIFlag(false);
-
-      t_ += 2;
-
-      break;
+      setIFlag(false); incT(2); break;
     }
 
     case 0x78: { // SEI (Set Interrupt Disable)
-      setIFlag(true);
-
-      t_ += 2;
-
-      break;
+      setIFlag(true); incT(2); break;
     }
 
     case 0xB8: { // CLV (Clear overflow)
-      setVFlag(false);
-
-      t_ += 2;
-
-      break;
+      setVFlag(false); incT(2); break;
     }
 
     case 0xD8: { // CLD (Clear Decimal Mode)
-      setDFlag(false);
-
-      t_ += 2;
-
-      break;
+      setDFlag(false); incT(2); break;
     }
 
     case 0xF8: { // SED (Set Decimal Mode)
-      setDFlag(true);
-
-      t_ += 2;
-
-      break;
+      setDFlag(true); incT(2); break;
     }
 
     //---
@@ -667,127 +682,127 @@ step()
 
     // STA ...
     case 0x81: { // STA (indirect,X)
-      setMemIndexedIndirectX(readByte(), A()); t_ += 6; break;
+      setMemIndexedIndirectX(readByte(), A()); incT(6); break;
     }
     case 0x85: { // STA zero page
-      setByte(readByte(), A()); t_ += 3; break;
+      setByte(readByte(), A()); incT(3); break;
     }
     case 0x8D: { // STA absolute
-      setByte(readWord(), A()); t_ += 4; break;
+      setByte(readWord(), A()); incT(4); break;
     }
     case 0x91: { // STA (indirect),Y
-      setMemIndirectIndexedY(readByte(), A()); t_ += 6; break;
+      setMemIndirectIndexedY(readByte(), A()); incT(6); break;
     }
     case 0x95: { // STA zero page,X
-      setByte(readByte() + X(), A()); t_ += 4; break;
+      setByte(readByte() + X(), A()); incT(4); break;
     }
     case 0x99: { // STA absolute,Y
-      setByte(readWord() + Y(), A()); t_ += 5; break;
+      setByte(readWord() + Y(), A()); incT(5); break;
     }
     case 0x9D: { // STA absolute,X
-      setByte(readWord() + X(), A()); t_ += 5; break;
+      setByte(readWord() + X(), A()); incT(5); break;
     }
 
     // STY ...
     case 0x84: { // STY zero page
-      setByte(readByte(), Y()); t_ += 3; break;
+      setByte(readByte(), Y()); incT(3); break;
     }
     case 0x8C: { // STY absolute
-      setByte(readWord(), Y()); t_ += 4; break;
+      setByte(readWord(), Y()); incT(4); break;
     }
     case 0x94: { // STY zero page,X
-      setByte(readByte() + X(), Y()); t_ += 4; break;
+      setByte(readByte() + X(), Y()); incT(4); break;
     }
 
     // STX ...
     case 0x86: { // STX zero page
-      setByte(readByte(), X()); t_ += 3; break;
+      setByte(readByte(), X()); incT(3); break;
     }
     case 0x8E: { // STX absolute
-      setByte(readWord(), X()); t_ += 4; break;
+      setByte(readWord(), X()); incT(4); break;
     }
     case 0x96: { // STX zero page,Y
-      setByte(readByte() + Y(), Y()); t_ += 4; break;
+      setByte(readByte() + Y(), Y()); incT(4); break;
     }
 
     case 0x8A: { // TXA
-      setA(X()); setNZFlags(); t_ += 2; break;
+      setA(X()); setNZFlags(); incT(2); break;
     }
     case 0x9A: { // TXS
-      setSR(X()); t_ += 2; break;
+      setSR(X()); incT(2); break;
     }
     case 0xAA: { // TAX
-      setX(A()); setNZFlags(X()); t_ += 2; break;
+      setX(A()); setNZFlags(X()); incT(2); break;
     }
     case 0xBA: { // TSX
-      setX(SP()); setNZFlags(X()); t_ += 2; break;
+      setX(SP()); setNZFlags(X()); incT(2); break;
     }
 
     case 0x98: { // TYA
-      setA(Y()); setNZFlags(); t_ += 2; break;
+      setA(Y()); setNZFlags(); incT(2); break;
     }
     case 0xA8: { // TAY
-      setY(A()); setNZFlags(Y()); t_ += 2; break;
+      setY(A()); setNZFlags(Y()); incT(2); break;
     }
 
     // LDY...
     case 0xA0: { // LDY immediate
-      setY(readByte()); setNZFlags(Y()); t_ += 3; break;
+      setY(readByte()); setNZFlags(Y()); incT(3); break;
     }
     case 0xA4: { // LDY zero page
-      setY(getByte(readByte())); setNZFlags(Y()); t_ += 3; break;
+      setY(getByte(readByte())); setNZFlags(Y()); incT(3); break;
     }
     case 0xAC: { // LDY absolute
-      setY(getByte(readWord())); setNZFlags(Y()); t_ += 4; break;
+      setY(getByte(readWord())); setNZFlags(Y()); incT(4); break;
     }
     case 0xB4: { // LDY zero page,X
-      setY(getByte(readByte() + X())); setNZFlags(Y()); t_ += 4; break;
+      setY(getByte(readByte() + X())); setNZFlags(Y()); incT(4); break;
     }
     case 0xBC: { // LDY absolute,X
-      setY(getByte(readWord() + X())); setNZFlags(Y()); t_ += 4; break;
+      setY(getByte(readWord() + X())); setNZFlags(Y()); incT(4); break;
     }
 
     // LDX...
     case 0xA2: { // LDX immediate
-      setX(readByte()); setNZFlags(X()); t_ += 3; break;
+      setX(readByte()); setNZFlags(X()); incT(3); break;
     }
     case 0xA6: { // LDX zero page
-      setX(getByte(readByte())); setNZFlags(X()); t_ += 3; break;
+      setX(getByte(readByte())); setNZFlags(X()); incT(3); break;
     }
     case 0xAE: { // LDX absolute
-      setX(getByte(readWord())); setNZFlags(X()); t_ += 4; break;
+      setX(getByte(readWord())); setNZFlags(X()); incT(4); break;
     }
     case 0xB6: { // LDX zero page,Y
-      setX(getByte(readByte() + Y())); setNZFlags(X()); t_ += 4; break;
+      setX(getByte(readByte() + Y())); setNZFlags(X()); incT(4); break;
     }
     case 0xBE: { // LDX absolute,Y
-      setX(getByte(readWord() + Y())); setNZFlags(X()); t_ += 4; break;
+      setX(getByte(readWord() + Y())); setNZFlags(X()); incT(4); break;
     }
 
     // LDA...
     case 0xA1: { // LDA (indirect,X)
-      setA(memIndexedIndirectX(readByte())); setNZFlags(A()); t_ += 6; break;
+      setA(memIndexedIndirectX(readByte())); setNZFlags(A()); incT(6); break;
     }
     case 0xA5: { // LDA zero page
-      setA(getByte(readByte())); setNZFlags(A()); t_ += 3; break;
+      setA(getByte(readByte())); setNZFlags(A()); incT(3); break;
     }
     case 0xA9: { // LDA immediate
-      setA(readByte()); setNZFlags(X()); t_ += 2; break;
+      setA(readByte()); setNZFlags(X()); incT(2); break;
     }
     case 0xAD: { // LDA absolute
-      setA(getByte(readWord())); setNZFlags(A()); t_ += 4; break;
+      setA(getByte(readWord())); setNZFlags(A()); incT(4); break;
     }
     case 0xB1: { // LDA (indirect),Y
-      setA(memIndirectIndexedY(readByte())); setNZFlags(A()); t_ += 5; break;
+      setA(memIndirectIndexedY(readByte())); setNZFlags(A()); incT(5); break;
     }
     case 0xB5: { // LDA zero page,X
-      setA(getByte(readByte() + X())); setNZFlags(A()); t_ += 4; break;
+      setA(getByte(readByte() + X())); setNZFlags(A()); incT(4); break;
     }
     case 0xB9: { // LDA absolute,Y
-      setA(getByte(readWord() + Y())); setNZFlags(A()); t_ += 4; break;
+      setA(getByte(readWord() + Y())); setNZFlags(A()); incT(4); break;
     }
     case 0xBD: { // LDA absolute,X
-      setA(getByte(readWord() + X())); setNZFlags(A()); t_ += 4; break;
+      setA(getByte(readWord() + X())); setNZFlags(A()); incT(4); break;
     }
 
     //---
@@ -795,59 +810,59 @@ step()
     // Increment/Decrement
 
     case 0x88: { // DEY
-      setY(Y() - 1); setNZFlags(Y()); t_ += 2; break;
+      setY(Y() - 1); setNZFlags(Y()); incT(2); break;
     }
     case 0xCA: { // DEX
-      setX(X() - 1); setNZFlags(X()); t_ += 2; break;
+      setX(X() - 1); setNZFlags(X()); incT(2); break;
     }
 
     case 0xC8: { // INY
-      setY(Y() + 1); setNZFlags(Y()); t_ += 2; break;
+      setY(Y() + 1); setNZFlags(Y()); incT(2); break;
     }
     case 0xE8: { // INX
-      setX(X() + 1); setNZFlags(X()); t_ += 2; break;
+      setX(X() + 1); setNZFlags(X()); incT(2); break;
     }
 
     // DEC ...
     case 0xC6: { // DEC zero page
       ushort a = readByte(); uchar c1 = getByte(a) - 1;
-      setByte(a, c1); setNZFlags(c1); t_ += 5; break;
+      setByte(a, c1); setNZFlags(c1); incT(5); break;
     }
     case 0xCE: { // DEC absolute
       ushort a = readWord(); uchar c1 = getByte(a) - 1;
-      setByte(a, c1); setNZFlags(c1); t_ += 6; break;
+      setByte(a, c1); setNZFlags(c1); incT(6); break;
     }
     case 0xD6: { // DEC zero page,X
       ushort a = readByte() + X(); uchar c1 = getByte(a) - 1;
-      setByte(a, c1); setNZFlags(c1); t_ += 6; break;
+      setByte(a, c1); setNZFlags(c1); incT(6); break;
     }
     case 0xDE: { // DEC absolute,X
       ushort a = readWord() + X(); uchar c1 = getByte(a) - 1;
-      setByte(a, c1); setNZFlags(c1); t_ += 7; break;
+      setByte(a, c1); setNZFlags(c1); incT(7); break;
     }
 
     // INC ...
     case 0xE6: { // INC zero page
       ushort a = readByte(); uchar c1 = getByte(a) + 1;
-      setByte(a, c1); setNZFlags(c1); t_ += 5; break;
+      setByte(a, c1); setNZFlags(c1); incT(5); break;
     }
     case 0xEE: { // INC absolute
       ushort a = readWord(); uchar c1 = getByte(a) + 1;
-      setByte(a, c1); setNZFlags(c1); t_ += 6; break;
+      setByte(a, c1); setNZFlags(c1); incT(6); break;
     }
     case 0xF6: { // INC zero page,X
       ushort a = readByte() + X(); uchar c1 = getByte(a) + 1;
-      setByte(a, c1); setNZFlags(c1); t_ += 6; break;
+      setByte(a, c1); setNZFlags(c1); incT(6); break;
     }
     case 0xFE: { // INC absolute,X
       ushort a = readWord() + X(); uchar c1 = getByte(a) + 1;
-      setByte(a, c1); setNZFlags(c1); t_ += 7; break;
+      setByte(a, c1); setNZFlags(c1); incT(7); break;
     }
 
     //---
 
     case 0xEA: { // NOP
-      t_ += 2; break;
+      incT(2); break;
     }
 
     //---
