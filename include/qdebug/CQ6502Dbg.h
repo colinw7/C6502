@@ -9,8 +9,8 @@
 #include <set>
 
 class CQ6502Dbg;
-class CQ6502Mem;
-class CQ6502Inst;
+class CQ6502MemArea;
+class CQ6502InstArea;
 class CQ6502Stack;
 class CQ6502TraceBack;
 class CQ6502RegEdit;
@@ -35,6 +35,7 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
 
   Q_PROPERTY(QFont  fixedFont         READ getFixedFont        WRITE setFixedFont)
   Q_PROPERTY(int    numMemoryLines    READ getNumMemoryLines   WRITE setNumMemoryLines)
+  Q_PROPERTY(int    memLineWidth      READ memLineWidth        WRITE setMemLineWidth)
   Q_PROPERTY(bool   memoryTrace       READ isMemoryTrace       WRITE setMemoryTrace)
   Q_PROPERTY(bool   instructionsTrace READ isInstructionsTrace WRITE setInstructionsTrace)
   Q_PROPERTY(bool   registersTrace    READ isRegistersTrace    WRITE setRegistersTrace)
@@ -50,13 +51,14 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   Q_PROPERTY(QColor screenBgColor     READ screenBgColor       WRITE setScreenBgColor)
 
  public:
-  CQ6502Dbg(C6502 *c6502);
+  CQ6502Dbg(C6502 *cpu=nullptr);
 
   virtual ~CQ6502Dbg();
 
   virtual void init();
 
-  C6502 *get6502() const { return c6502_; }
+  C6502 *getCPU() const { return cpu_; }
+  void setCPU(C6502 *cpu) { cpu_ = cpu; }
 
   void regChanged(C6502::Reg reg) override;
 
@@ -64,7 +66,10 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   void setFixedFont(const QFont &font);
 
   int getNumMemoryLines() const { return numMemoryLines_; }
-  void setNumMemoryLines(int i) { numMemoryLines_ = i; }
+  void setNumMemoryLines(int i);
+
+  int memLineWidth() const { return memLineWidth_; }
+  void setMemLineWidth(int i);
 
   bool isMemoryTrace() const { return memoryTrace_; }
   void setMemoryTrace(bool b);
@@ -105,6 +110,16 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   const QColor &screenBgColor() const { return screenBgColor_; }
   void setScreenBgColor(const QColor &c) { screenBgColor_ = c; }
 
+  //---
+
+  void updateBreakpoints();
+
+  //---
+
+  void paintEvent(QPaintEvent *) override;
+
+  QSize sizeHint() const override;
+
  protected:
   virtual void addWidgets();
 
@@ -123,20 +138,20 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
 
   std::string getByteChar(uchar c);
 
+  void updateRegisters();
+
   void updateInstructions();
 
   void updateStack();
 
   void updateTraceBack();
 
-  void updateBreakpoints();
-
-  //QLineEdit *createRegisterEdit();
-
   //----
 
  protected:
   void postStepProc() override;
+
+  void processEvents();
 
   void memChanged(ushort pos, ushort len) override;
 
@@ -150,6 +165,11 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   void setHalt(bool b) override;
 
   void updateAll();
+
+ public slots:
+  void forceHalt();
+
+  void updateSlot();
 
  protected slots:
   void addBreakpointSlot();
@@ -176,10 +196,12 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   void exitSlot();
 
  protected:
-  C6502 *c6502_ { nullptr };
-  QFont  fixedFont_;
+  C6502 *cpu_ { nullptr };
 
-  int numMemoryLines_ { 20 };
+  QFont fixedFont_;
+
+  int numMemoryLines_ { 32 };
+  int memLineWidth_   { 16 };
 
   bool follow_    { false };
   bool followMem_ { false };
@@ -201,33 +223,39 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   QColor readOnlyBgColor_ { 216, 180, 180 };
   QColor screenBgColor_   { 180, 216, 180 };
 
-  QGroupBox  *memoryGroup_ { nullptr };
-  CQ6502Mem  *memoryText_  { nullptr };
-  QScrollBar *memoryVBar_  { nullptr };
+  QGroupBox*     memoryGroup_ { nullptr };
+  CQ6502MemArea* memoryArea_  { nullptr };
 
-  QGroupBox  *instructionsGroup_ { nullptr };
-  CQ6502Inst *instructionsText_ { nullptr };
-  QScrollBar *instructionsVBar_  { nullptr };
-  QLineEdit  *opData_            { nullptr };
+  QGroupBox*      instructionsGroup_ { nullptr };
+  CQ6502InstArea* instructionsArea_  { nullptr };
+  QLineEdit*      opData_            { nullptr };
 
-  QGroupBox     *registersGroup_  { nullptr };
-  QGridLayout   *registersLayout_ { nullptr };
-  CQ6502RegEdit *aEdit_           { nullptr };
-  CQ6502RegEdit *xEdit_           { nullptr };
-  CQ6502RegEdit *yEdit_           { nullptr };
-  CQ6502RegEdit *srEdit_          { nullptr };
-  CQ6502RegEdit *spEdit_          { nullptr };
-  CQ6502RegEdit *pcEdit_          { nullptr };
+  struct RegisterWidgetData {
+    QGroupBox     *group  { nullptr };
+    QGridLayout   *layout { nullptr };
+    CQ6502RegEdit *aEdit  { nullptr };
+    CQ6502RegEdit *xEdit  { nullptr };
+    CQ6502RegEdit *yEdit  { nullptr };
+    CQ6502RegEdit *srEdit { nullptr };
+    CQ6502RegEdit *spEdit { nullptr };
+    CQ6502RegEdit *pcEdit { nullptr };
+  };
 
-  QGroupBox   *flagsGroup_  { nullptr };
-  QGridLayout *flagsLayout_ { nullptr };
-  QCheckBox   *cFlagCheck_  { nullptr };
-  QCheckBox   *zFlagCheck_  { nullptr };
-  QCheckBox   *iFlagCheck_  { nullptr };
-  QCheckBox   *dFlagCheck_  { nullptr };
-  QCheckBox   *bFlagCheck_  { nullptr };
-  QCheckBox   *vFlagCheck_  { nullptr };
-  QCheckBox   *nFlagCheck_  { nullptr };
+  RegisterWidgetData regWidgetData_;
+
+  struct FlagsWidgetData {
+    QGroupBox   *group  { nullptr };
+    QGridLayout *layout { nullptr };
+    QCheckBox   *cCheck { nullptr };
+    QCheckBox   *zCheck { nullptr };
+    QCheckBox   *iCheck { nullptr };
+    QCheckBox   *dCheck { nullptr };
+    QCheckBox   *bCheck { nullptr };
+    QCheckBox   *vCheck { nullptr };
+    QCheckBox   *nCheck { nullptr };
+  };
+
+  FlagsWidgetData flagsWidgetData_;
 
   QGroupBox   *stackGroup_ { nullptr };
   CQ6502Stack *stackText_  { nullptr };
@@ -235,10 +263,14 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   QGroupBox       *traceBackGroup_ { nullptr };
   CQ6502TraceBack *traceBack_      { nullptr };
 
-  QGroupBox   *breakpointsGroup_  { nullptr };
-  QVBoxLayout *breakpointsLayout_ { nullptr };
-  QTextEdit   *breakpointsText_   { nullptr };
-  QLineEdit   *breakpointsEdit_   { nullptr };
+  struct BreakpointsWidgetData {
+    QGroupBox   *group  { nullptr };
+    QVBoxLayout *layout { nullptr };
+    QTextEdit   *text   { nullptr };
+    QLineEdit   *edit   { nullptr };
+  };
+
+  BreakpointsWidgetData breakpointsWidgetData_;
 
   QCheckBox   *traceCheck_ { nullptr };
   QCheckBox   *haltCheck_  { nullptr };
@@ -252,6 +284,9 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   QPushButton *stopButton_     { nullptr };
   QPushButton *restartButton_  { nullptr };
   QPushButton *exitButton_     { nullptr };
+
+  bool updateNeeded_ { false };
+  int  updateCount   { 0 };
 };
 
 #endif

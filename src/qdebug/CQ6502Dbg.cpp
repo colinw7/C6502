@@ -5,6 +5,8 @@
 #include <CQ6502TraceBack.h>
 #include <CQ6502RegEdit.h>
 #include <C6502.h>
+#include <CQTabSplit.h>
+#include <CQUtil.h>
 #include <CStrUtil.h>
 
 #include <QApplication>
@@ -21,14 +23,14 @@
 #include <cassert>
 
 CQ6502Dbg::
-CQ6502Dbg(C6502 *c6502) :
- C6502Trace(*c6502), c6502_(c6502)
+CQ6502Dbg(C6502 *cpu) :
+ C6502Trace(cpu), cpu_(cpu)
 {
   setObjectName("dbg");
 
   setWindowTitle("6502 Emulator (Debug)");
 
-  //c6502_->addTrace(this);
+  //cpu_->addTrace(this);
 }
 
 CQ6502Dbg::
@@ -61,18 +63,48 @@ setFixedFont(const QFont &font)
 {
   fixedFont_ = font;
 
-  memoryText_      ->setFont(getFixedFont());
-  instructionsText_->setFont(getFixedFont());
-  stackText_       ->setFont(getFixedFont());
-  traceBack_       ->setFont(getFixedFont());
-  breakpointsText_ ->setFont(getFixedFont());
+  memoryArea_      ->text()->setFont(getFixedFont());
+  instructionsArea_->text()->setFont(getFixedFont());
 
-  aEdit_  ->setFont(getFixedFont());
-  xEdit_  ->setFont(getFixedFont());
-  yEdit_  ->setFont(getFixedFont());
-  srEdit_ ->setFont(getFixedFont());
-  spEdit_ ->setFont(getFixedFont());
-  pcEdit_ ->setFont(getFixedFont());
+  stackText_->setFont(getFixedFont());
+  traceBack_->setFont(getFixedFont());
+
+  breakpointsWidgetData_.text->setFont(getFixedFont());
+
+  regWidgetData_.aEdit ->setFont(getFixedFont());
+  regWidgetData_.xEdit ->setFont(getFixedFont());
+  regWidgetData_.yEdit ->setFont(getFixedFont());
+  regWidgetData_.srEdit->setFont(getFixedFont());
+  regWidgetData_.spEdit->setFont(getFixedFont());
+  regWidgetData_.pcEdit->setFont(getFixedFont());
+}
+
+void
+CQ6502Dbg::
+setNumMemoryLines(int i)
+{
+  if (i != numMemoryLines_) {
+    numMemoryLines_ = i;
+
+    memoryArea_->text()->setFont(getFixedFont());
+
+    memoryArea_->updateLayout();
+  }
+}
+
+void
+CQ6502Dbg::
+setMemLineWidth(int i)
+{
+  if (i != memLineWidth_) {
+    memLineWidth_ = i;
+
+    setMemoryText();
+
+    memoryArea_->text()->setFont(getFixedFont());
+
+    memoryArea_->updateLayout();
+  }
 }
 
 void
@@ -86,6 +118,8 @@ setMemoryTrace(bool b)
   }
 }
 
+//---
+
 void
 CQ6502Dbg::
 addWidgets()
@@ -96,210 +130,166 @@ addWidgets()
 
   //----
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(0);
+  auto layout = CQUtil::makeLayout<QVBoxLayout>(this, 0, 0);
 
-  QWidget *topFrame    = new QWidget;
-  QWidget *bottomFrame = new QWidget;
+  //---
 
-  topFrame   ->setObjectName("topFrame");
-  bottomFrame->setObjectName("bottomFrame");
+  auto topFrame = CQUtil::makeWidget<CQTabSplit>("topFrame");
+  topFrame->setOrientation(Qt::Horizontal);
 
-  QHBoxLayout *topLayout    = new QHBoxLayout(topFrame);
-  QVBoxLayout *bottomLayout = new QVBoxLayout(bottomFrame);
+  auto bottomFrame = CQUtil::makeWidget<QFrame>("bottomFrame");
 
-  topLayout   ->setMargin(2); topLayout   ->setSpacing(2);
-  bottomLayout->setMargin(2); bottomLayout->setSpacing(2);
+  auto bottomLayout = CQUtil::makeLayout<QVBoxLayout>(bottomFrame, 2, 2);
 
   layout->addWidget(topFrame);
   layout->addWidget(bottomFrame);
 
   //----
 
-  QWidget *leftFrame  = new QWidget;
-  QWidget *rightFrame = new QWidget;
+  auto leftFrame = CQUtil::makeWidget<CQTabSplit>("leftFrame");
+  leftFrame->setOrientation(Qt::Vertical);
+  leftFrame->setGrouped(true);
 
-  leftFrame ->setObjectName("leftFrame");
-  rightFrame->setObjectName("rightFrame");
+  topFrame->addWidget(leftFrame, "Memory and Instructions");
 
-  topLayout->addWidget(leftFrame);
-  topLayout->addWidget(rightFrame);
+  //--
 
-  QVBoxLayout *leftLayout  = new QVBoxLayout(leftFrame );
-  QVBoxLayout *rightLayout = new QVBoxLayout(rightFrame);
-
-  leftLayout ->setMargin(2); leftLayout ->setSpacing(2);
-  rightLayout->setMargin(2); rightLayout->setSpacing(2);
-
-  //----
-
-  memoryGroup_ = new QGroupBox("Memory");
-
-  memoryGroup_->setObjectName("memoryGroup");
+  memoryGroup_ = CQUtil::makeLabelWidget<QGroupBox>("Enabled", "memoryGroup");
   memoryGroup_->setCheckable(true);
 
   connect(memoryGroup_, SIGNAL(toggled(bool)), this, SLOT(memoryTraceSlot()));
 
-  QHBoxLayout *memoryLayout = new QHBoxLayout(memoryGroup_);
+  auto memoryGroupLayout = CQUtil::makeLayout<QVBoxLayout>(memoryGroup_, 2, 2);
 
-  memoryText_ = new CQ6502Mem(this);
+  memoryArea_ = new CQ6502MemArea(this);
 
-  memoryText_->setFont(getFixedFont());
+  memoryGroupLayout->addWidget(memoryArea_);
+//memoryGroupLayout->addStretch();
 
-  memoryVBar_ = new QScrollBar;
-
-  memoryVBar_->setObjectName("memoryVbar");
-  memoryVBar_->setPageStep  (getNumMemoryLines());
-  memoryVBar_->setSingleStep(1);
-  memoryVBar_->setRange     (0, 8192 - memoryVBar_->pageStep());
-
-  connect(memoryVBar_, SIGNAL(valueChanged(int)), memoryText_, SLOT(sliderSlot(int)));
-
-  memoryLayout->addWidget(memoryText_);
-  memoryLayout->addWidget(memoryVBar_);
-  memoryLayout->addStretch();
-
-  leftLayout->addWidget(memoryGroup_);
+  leftFrame->addWidget(memoryGroup_, "Memory");
 
   //--
 
-  instructionsGroup_ = new QGroupBox("Instructions");
+  auto instructionsFrame  = CQUtil::makeWidget<QFrame>("instructionsFrame");
+  auto instructionsLayout = CQUtil::makeLayout<QVBoxLayout>(instructionsFrame, 2, 2);
 
-  instructionsGroup_->setObjectName("instructionsGroup");
+  instructionsGroup_ = CQUtil::makeLabelWidget<QGroupBox>("Enabled", "instructionsGroup");
   instructionsGroup_->setCheckable(true);
 
   connect(instructionsGroup_, SIGNAL(toggled(bool)), this, SLOT(instructionsTraceSlot()));
 
-  QHBoxLayout *instructionsLayout = new QHBoxLayout(instructionsGroup_);
+  auto instructionsGroupLayout = CQUtil::makeLayout<QVBoxLayout>(instructionsGroup_, 2, 2);
 
-  instructionsText_ = new CQ6502Inst(this);
+  instructionsArea_ = new CQ6502InstArea(this);
 
-  instructionsText_->setFont(getFixedFont());
+  instructionsGroupLayout->addWidget(instructionsArea_);
+//instructionsGroupLayout->addStretch();
 
-  instructionsVBar_ = new QScrollBar;
+  instructionsLayout->addWidget(instructionsGroup_);
 
-  instructionsVBar_->setObjectName("instructionsVbar");
-  instructionsVBar_->setPageStep  (getNumMemoryLines());
-  instructionsVBar_->setSingleStep(1);
-  instructionsVBar_->setRange     (0, 8192 - instructionsVBar_->pageStep());
-
-  connect(instructionsVBar_, SIGNAL(valueChanged(int)),
-          instructionsText_, SLOT(sliderSlot(int)));
-
-  instructionsLayout->addWidget(instructionsText_);
-  instructionsLayout->addWidget(instructionsVBar_);
-  instructionsLayout->addStretch();
-
-  instructionsText_->setVBar(instructionsVBar_);
-
-  leftLayout->addWidget(instructionsGroup_);
-
-  opData_ = new QLineEdit;
-
-  opData_->setObjectName("opData");
+  opData_ = CQUtil::makeWidget<QLineEdit>("opData");
 
   opData_->setReadOnly(true);
 
-  leftLayout->addWidget(opData_);
+  instructionsLayout->addWidget(opData_);
 
-  //----
+  leftFrame->addWidget(instructionsFrame, "Instructions");
 
-  registersGroup_ = new QGroupBox("Registers");
+  //------
 
-  registersGroup_->setObjectName("registersGroup");
-  registersGroup_->setCheckable(true);
+  auto rightFrame = CQUtil::makeWidget<CQTabSplit>("rightFrame");
+  rightFrame->setOrientation(Qt::Vertical);
+  rightFrame->setGrouped(true);
 
-  connect(registersGroup_, SIGNAL(toggled(bool)), this, SLOT(registersTraceSlot()));
+  topFrame->addWidget(rightFrame, "Registers, Flags, Stack, Traceback and Breakpoins");
 
-  registersLayout_ = new QGridLayout(registersGroup_);
+  //--
+
+  topFrame->setSizes(QList<int>({INT_MAX, INT_MAX}));
+
+  //---
+
+  regWidgetData_.group = CQUtil::makeLabelWidget<QGroupBox>("Enabled", "registersGroup");
+  regWidgetData_.group->setCheckable(true);
+
+  connect(regWidgetData_.group, SIGNAL(toggled(bool)), this, SLOT(registersTraceSlot()));
+
+  regWidgetData_.layout = CQUtil::makeLayout<QGridLayout>(regWidgetData_.group, 2, 2);
 
   addRegistersWidgets();
 
-  rightLayout->addWidget(registersGroup_);
+  rightFrame->addWidget(regWidgetData_.group, "Registers");
 
   //--
 
-  flagsGroup_ = new QGroupBox("Flags");
+  flagsWidgetData_.group = CQUtil::makeLabelWidget<QGroupBox>("Enabled", "flagsGroup");
+  flagsWidgetData_.group->setCheckable(true);
 
-  flagsGroup_->setObjectName("flagsGroup");
-  flagsGroup_->setCheckable(true);
+  connect(flagsWidgetData_.group, SIGNAL(toggled(bool)), this, SLOT(flagsTraceSlot()));
 
-  connect(flagsGroup_, SIGNAL(toggled(bool)), this, SLOT(flagsTraceSlot()));
-
-  flagsLayout_ = new QGridLayout(flagsGroup_);
-
-  flagsLayout_->setSpacing(6);
+  flagsWidgetData_.layout = CQUtil::makeLayout<QGridLayout>(flagsWidgetData_.group, 2, 6);
 
   addFlagsWidgets();
 
-  rightLayout->addWidget(flagsGroup_);
+  rightFrame->addWidget(flagsWidgetData_.group, "Flags");
 
   //--
 
-  stackGroup_ = new QGroupBox("Stack");
-
-  stackGroup_->setObjectName("stackGroup");
+  stackGroup_ = CQUtil::makeLabelWidget<QGroupBox>("Enabled", "stackGroup");
   stackGroup_->setCheckable(true);
 
   connect(stackGroup_, SIGNAL(toggled(bool)), this, SLOT(stackTraceSlot()));
 
-  QVBoxLayout *stackLayout = new QVBoxLayout(stackGroup_);
+  auto stackLayout = CQUtil::makeLayout<QVBoxLayout>(stackGroup_, 2, 2);
 
-  stackText_ = new CQ6502Stack(c6502_);
+  stackText_ = new CQ6502Stack(cpu_);
 
   stackText_->setFixedFont(getFixedFont());
 
   stackLayout->addWidget(stackText_);
 
-  rightLayout->addWidget(stackGroup_);
+  rightFrame->addWidget(stackGroup_, "Stack");
 
   //--
 
-  traceBackGroup_ = new QGroupBox("Trace Back");
-
-  traceBackGroup_->setObjectName("traceBackGroup");
+  traceBackGroup_ = CQUtil::makeLabelWidget<QGroupBox>("Enabled", "traceBackGroup");
   traceBackGroup_->setCheckable(true);
 
   connect(traceBackGroup_, SIGNAL(toggled(bool)), this, SLOT(traceBackTraceSlot()));
 
-  QVBoxLayout *traceBackLayout = new QVBoxLayout(traceBackGroup_);
+  auto traceBackLayout = CQUtil::makeLayout<QVBoxLayout>(traceBackGroup_, 2, 2);
 
-  traceBack_ = new CQ6502TraceBack(c6502_);
+  traceBack_ = new CQ6502TraceBack(cpu_);
 
   traceBack_->setFixedFont(getFixedFont());
 
   traceBackLayout->addWidget(traceBack_);
 
-  rightLayout->addWidget(traceBackGroup_);
+  rightFrame->addWidget(traceBackGroup_, "Traceback");
 
   //--
 
-  breakpointsGroup_ = new QGroupBox("Breakpoints");
+  breakpointsWidgetData_.group = CQUtil::makeLabelWidget<QGroupBox>("Enabled", "breakpointsGroup");
+  breakpointsWidgetData_.group->setCheckable(true);
 
-  breakpointsGroup_->setObjectName("breakpointsGroup");
-  breakpointsGroup_->setCheckable(true);
+  connect(breakpointsWidgetData_.group, SIGNAL(toggled(bool)), this, SLOT(breakpointsTraceSlot()));
 
-  connect(breakpointsGroup_, SIGNAL(toggled(bool)), this, SLOT(breakpointsTraceSlot()));
-
-  breakpointsLayout_ = new QVBoxLayout(breakpointsGroup_);
+  breakpointsWidgetData_.layout =
+    CQUtil::makeLayout<QVBoxLayout>(breakpointsWidgetData_.group, 2, 2);
 
   addBreakpointWidgets();
 
-  rightLayout->addWidget(breakpointsGroup_);
+  rightFrame->addWidget(breakpointsWidgetData_.group, "Breakpoints");
 
   //-----
 
-  QFrame *optionsFrame = new QFrame;
+  auto optionsFrame = CQUtil::makeWidget<QFrame>("optionsFrame");
 
-  optionsFrame->setObjectName("optionsFrame");
-
-  QHBoxLayout *optionsLayout = new QHBoxLayout(optionsFrame);
+  auto optionsLayout = CQUtil::makeLayout<QHBoxLayout>(optionsFrame, 2, 2);
 
   //--
 
-  traceCheck_ = new QCheckBox("Trace");
-
-  traceCheck_->setObjectName("traceCheck");
+  traceCheck_ = CQUtil::makeLabelWidget<QCheckBox>("Trace", "traceCheck");
   traceCheck_->setChecked(true);
 
   connect(traceCheck_, SIGNAL(stateChanged(int)), this, SLOT(setTraceSlot()));
@@ -308,9 +298,7 @@ addWidgets()
 
   //--
 
-  haltCheck_ = new QCheckBox("Halt");
-
-  haltCheck_->setObjectName("haltCheck");
+  haltCheck_ = CQUtil::makeLabelWidget<QCheckBox>("Halt", "haltCheck");
   haltCheck_->setChecked(false);
 
   connect(haltCheck_, SIGNAL(stateChanged(int)), this, SLOT(setHaltSlot()));
@@ -325,11 +313,9 @@ addWidgets()
 
   //---
 
-  buttonsToolbar_ = new QFrame;
+  buttonsToolbar_ = CQUtil::makeWidget<QFrame>("buttonsToolbar");
 
-  buttonsToolbar_->setObjectName("buttonsToolbar");
-
-  buttonsLayout_ = new QHBoxLayout(buttonsToolbar_);
+  buttonsLayout_ = CQUtil::makeLayout<QHBoxLayout>(buttonsToolbar_, 2, 2);
 
   buttonsLayout_->addStretch(1);
 
@@ -342,96 +328,90 @@ void
 CQ6502Dbg::
 addFlagsWidgets()
 {
-  cFlagCheck_ = new QCheckBox("");
-  zFlagCheck_ = new QCheckBox("");
-  iFlagCheck_ = new QCheckBox("");
-  dFlagCheck_ = new QCheckBox("");
-  bFlagCheck_ = new QCheckBox("");
-  vFlagCheck_ = new QCheckBox("");
-  nFlagCheck_ = new QCheckBox("");
+  int col = 0;
 
-  cFlagCheck_->setObjectName("cFlagCheck");
-  zFlagCheck_->setObjectName("zFlagCheck");
-  iFlagCheck_->setObjectName("iFlagCheck");
-  dFlagCheck_->setObjectName("dFlagCheck");
-  bFlagCheck_->setObjectName("bFlagCheck");
-  vFlagCheck_->setObjectName("vFlagCheck");
-  nFlagCheck_->setObjectName("nFlagCheck");
+  auto addCheckLabel = [&](const QString &name) {
+    QString lname = name.toLower();
 
-  flagsLayout_->addWidget(new QLabel("C"), 0, 0); flagsLayout_->addWidget(cFlagCheck_, 1, 0);
-  flagsLayout_->addWidget(new QLabel("Z"), 0, 1); flagsLayout_->addWidget(zFlagCheck_, 1, 1);
-  flagsLayout_->addWidget(new QLabel("I"), 0, 2); flagsLayout_->addWidget(iFlagCheck_, 1, 2);
-  flagsLayout_->addWidget(new QLabel("D"), 0, 3); flagsLayout_->addWidget(dFlagCheck_, 1, 3);
-  flagsLayout_->addWidget(new QLabel("B"), 0, 4); flagsLayout_->addWidget(bFlagCheck_, 1, 4);
-  flagsLayout_->addWidget(new QLabel("V"), 0, 5); flagsLayout_->addWidget(vFlagCheck_, 1, 5);
-  flagsLayout_->addWidget(new QLabel("N"), 0, 6); flagsLayout_->addWidget(nFlagCheck_, 1, 6);
+    auto check = CQUtil::makeLabelWidget<QCheckBox>("", lname + "FlagCheck");
+    auto label = CQUtil::makeLabelWidget<QLabel>(name, lname + "FlagLabel");
 
-  flagsLayout_->setColumnStretch(7, 1);
+    flagsWidgetData_.layout->addWidget(label, 0, col);
+    flagsWidgetData_.layout->addWidget(check, 1, col);
+
+    ++col;
+
+    return check;
+  };
+
+  flagsWidgetData_.cCheck = addCheckLabel("C");
+  flagsWidgetData_.zCheck = addCheckLabel("Z");
+  flagsWidgetData_.iCheck = addCheckLabel("I");
+  flagsWidgetData_.dCheck = addCheckLabel("D");
+  flagsWidgetData_.bCheck = addCheckLabel("B");
+  flagsWidgetData_.vCheck = addCheckLabel("V");
+  flagsWidgetData_.nCheck = addCheckLabel("N");
+
+  flagsWidgetData_.layout->setColumnStretch(col, 1);
+  flagsWidgetData_.layout->setRowStretch   (  2, 1);
 }
 
 void
 CQ6502Dbg::
 addRegistersWidgets()
 {
-  aEdit_   = new CQ6502RegEdit(c6502_, C6502::Reg::A );
-  xEdit_   = new CQ6502RegEdit(c6502_, C6502::Reg::X );
-  yEdit_   = new CQ6502RegEdit(c6502_, C6502::Reg::Y );
-  srEdit_  = new CQ6502RegEdit(c6502_, C6502::Reg::SR);
-  spEdit_  = new CQ6502RegEdit(c6502_, C6502::Reg::SP);
-  pcEdit_  = new CQ6502RegEdit(c6502_, C6502::Reg::PC);
+  int row = 0;
 
-  registersLayout_->addWidget(aEdit_ , 0, 0);
-  registersLayout_->addWidget(xEdit_ , 1, 0);
-  registersLayout_->addWidget(yEdit_ , 2, 0);
-  registersLayout_->addWidget(srEdit_, 3, 0);
-  registersLayout_->addWidget(spEdit_, 4, 0);
-  registersLayout_->addWidget(pcEdit_, 5, 0);
+  auto addRegEdit = [&](C6502::Reg reg) {
+    auto edit = new CQ6502RegEdit(cpu_, reg);
+    regWidgetData_.layout->addWidget(edit, row++, 0);
+    return edit;
+  };
 
-  registersLayout_->setColumnStretch(2, 1);
+  regWidgetData_.aEdit  = addRegEdit(C6502::Reg::A );
+  regWidgetData_.xEdit  = addRegEdit(C6502::Reg::X );
+  regWidgetData_.yEdit  = addRegEdit(C6502::Reg::Y );
+  regWidgetData_.srEdit = addRegEdit(C6502::Reg::SR);
+  regWidgetData_.spEdit = addRegEdit(C6502::Reg::SP);
+  regWidgetData_.pcEdit = addRegEdit(C6502::Reg::PC);
+
+  regWidgetData_.layout->setColumnStretch(2  , 1);
+  regWidgetData_.layout->setRowStretch   (row, 1);
 }
 
 void
 CQ6502Dbg::
 addBreakpointWidgets()
 {
-  breakpointsText_ = new QTextEdit;
+  breakpointsWidgetData_.text = CQUtil::makeWidget<QTextEdit>("breakpointsText");
+  breakpointsWidgetData_.text->setReadOnly(true);
 
-  breakpointsText_->setObjectName("breakpointsText");
-  breakpointsText_->setReadOnly(true);
+  breakpointsWidgetData_.text->setFont(getFixedFont());
 
-  breakpointsText_->setFont(getFixedFont());
+  breakpointsWidgetData_.layout->addWidget(breakpointsWidgetData_.text);
 
-  breakpointsLayout_->addWidget(breakpointsText_);
+  auto breakpointEditFrame = CQUtil::makeWidget<QFrame>("breakpointEditFrame");
 
-  QFrame *breakpointEditFrame = new QFrame;
+  breakpointsWidgetData_.layout->addWidget(breakpointEditFrame);
 
-  breakpointEditFrame->setObjectName("breakpointEditFrame");
+  auto breakpointEditLayout = CQUtil::makeLayout<QHBoxLayout>(breakpointEditFrame, 0, 0);
 
-  breakpointsLayout_->addWidget(breakpointEditFrame);
+  breakpointsWidgetData_.edit = CQUtil::makeWidget<QLineEdit>("breakpointsEdit");
 
-  QHBoxLayout *breakpointEditLayout = new QHBoxLayout(breakpointEditFrame);
-  breakpointEditLayout->setMargin(0); breakpointEditLayout->setSpacing(0);
-
-  breakpointsEdit_ = new QLineEdit;
-
-  breakpointEditLayout->addWidget(new QLabel("Addr"));
-  breakpointEditLayout->addWidget(breakpointsEdit_);
+  breakpointEditLayout->addWidget(CQUtil::makeLabelWidget<QLabel>("Addr", "addrLabel"));
+  breakpointEditLayout->addWidget(breakpointsWidgetData_.edit);
   breakpointEditLayout->addStretch(1);
 
-  QFrame *breakpointToolbar = new QFrame;
+  auto breakpointToolbar = CQUtil::makeWidget<QFrame>("breakpointToolbar");
 
-  breakpointToolbar->setObjectName("breakpointToolbar");
+  auto breakpointToolbarLayout = CQUtil::makeLayout<QHBoxLayout>(breakpointToolbar, 0, 0);
 
-  QHBoxLayout *breakpointToolbarLayout = new QHBoxLayout(breakpointToolbar);
-  breakpointToolbarLayout->setMargin(0); breakpointToolbarLayout->setSpacing(0);
-
-  QPushButton *addBreakpointButton    = new QPushButton("Add"   );
-  QPushButton *deleteBreakpointButton = new QPushButton("Delete");
-  QPushButton *clearBreakpointButton  = new QPushButton("Clear" );
-
-  addBreakpointButton   ->setObjectName("addBreakpointButton");
-  deleteBreakpointButton->setObjectName("deleteBreakpointButton");
-  clearBreakpointButton ->setObjectName("clearBreakpointButton");
+  auto addBreakpointButton    =
+    CQUtil::makeLabelWidget<QPushButton>("Add"   , "addBreakpointButton");
+  auto deleteBreakpointButton =
+    CQUtil::makeLabelWidget<QPushButton>("Delete", "deleteBreakpointButton");
+  auto clearBreakpointButton  =
+    CQUtil::makeLabelWidget<QPushButton>("Clear" , "clearBreakpointButton");
 
   connect(addBreakpointButton   , SIGNAL(clicked()), this, SLOT(addBreakpointSlot   ()));
   connect(deleteBreakpointButton, SIGNAL(clicked()), this, SLOT(deleteBreakpointSlot()));
@@ -442,7 +422,7 @@ addBreakpointWidgets()
   breakpointToolbarLayout->addWidget(clearBreakpointButton);
   breakpointToolbarLayout->addStretch(1);
 
-  breakpointsLayout_->addWidget(breakpointToolbar);
+  breakpointsWidgetData_.layout->addWidget(breakpointToolbar);
 }
 
 void
@@ -470,14 +450,14 @@ QPushButton *
 CQ6502Dbg::
 addButtonWidget(const QString &name, const QString &label)
 {
-  QPushButton *button = new QPushButton(label);
-
-  button->setObjectName(name);
+  QPushButton *button = CQUtil::makeLabelWidget<QPushButton>(label, name);
 
   buttonsLayout_->addWidget(button);
 
   return button;
 }
+
+//---
 
 void
 CQ6502Dbg::
@@ -485,25 +465,27 @@ setMemoryText()
 {
   uint len = 65536;
 
-  ushort numLines = len / 8;
+  ushort numLines = len/memLineWidth();
 
-  if ((len % 8) != 0) ++numLines;
+  if ((len % memLineWidth()) != 0) ++numLines;
 
-  uint pos = c6502_->PC();
+  uint pos = cpu_->PC();
 
-  c6502_->setPC(0);
+  cpu_->setPC(0);
 
   std::string str;
 
   uint pos1 = 0;
 
+  memoryArea_->text()->initLines();
+
   for (ushort i = 0; i < numLines; ++i) {
     setMemoryLine(pos1);
 
-    pos1 += 8;
+    pos1 += memLineWidth();
   }
 
-  c6502_->setPC(pos);
+  cpu_->setPC(pos);
 }
 
 void
@@ -516,21 +498,21 @@ setMemoryLine(uint pos)
 
   std::string memStr;
 
-  for (ushort j = 0; j < 8; ++j) {
+  for (ushort j = 0; j < memLineWidth(); ++j) {
     if (j > 0) memStr += " ";
 
-    memStr += CStrUtil::toHexString(c6502_->getByte(pos + j), 2);
+    memStr += CStrUtil::toHexString(cpu_->getByte(pos + j), 2);
   }
 
   std::string textStr;
 
-  for (ushort j = 0; j < 8; ++j) {
-    uchar c = c6502_->getByte(pos + j);
+  for (ushort j = 0; j < memLineWidth(); ++j) {
+    uchar c = cpu_->getByte(pos + j);
 
     textStr += getByteChar(c);
   }
 
-  memoryText_->setLine(pos, pcStr, memStr, textStr);
+  memoryArea_->text()->setLine(pos, pcStr, memStr, textStr);
 }
 
 std::string
@@ -547,11 +529,13 @@ getByteChar(uchar c)
   return str;
 }
 
+//---
+
 void
 CQ6502Dbg::
 updateInstructions()
 {
-  instructionsText_->reload();
+  instructionsArea_->text()->reload();
 }
 
 void
@@ -572,24 +556,26 @@ void
 CQ6502Dbg::
 updateBreakpoints()
 {
-  breakpointsText_->clear();
+  breakpointsWidgetData_.text->clear();
 
-  instructionsText_->clearBreakpoints();
+  if (isInstructionsTrace())
+    instructionsArea_->text()->clearBreakpoints();
 
   //----
 
   std::vector<ushort> addrs;
 
-  //c6502_->getBreakpoints(addrs);
+  cpu_->getBreakpoints(addrs);
 
   std::string str;
 
   for (uint i = 0; i < addrs.size(); ++i) {
     str = CStrUtil::toHexString(addrs[i], 4);
 
-    breakpointsText_->append(str.c_str());
+    breakpointsWidgetData_.text->append(str.c_str());
 
-    instructionsText_->addBreakPoint(addrs[i]);
+    if (isInstructionsTrace())
+      instructionsArea_->text()->addBreakPoint(addrs[i]);
   }
 }
 
@@ -597,8 +583,24 @@ void
 CQ6502Dbg::
 postStepProc()
 {
+  processEvents();
+}
+
+void
+CQ6502Dbg::
+processEvents()
+{
   while (qApp->hasPendingEvents())
     qApp->processEvents();
+}
+
+void
+CQ6502Dbg::
+updateRegisters()
+{
+  regChanged(C6502::Reg::NONE);
+
+  processEvents();
 }
 
 void
@@ -606,72 +608,72 @@ CQ6502Dbg::
 regChanged(C6502::Reg reg)
 {
   if (reg == C6502::Reg::A || reg == C6502::Reg::NONE) {
-    if (reg == C6502::Reg::NONE || isRegistersTrace())
-      aEdit_->setValue(c6502_->A());
+    if (isRegistersTrace())
+      regWidgetData_.aEdit->setValue(cpu_->A());
 
-    if (reg == C6502::Reg::NONE || isFlagsTrace()) {
-      cFlagCheck_->setChecked(c6502_->Cflag());
-      zFlagCheck_->setChecked(c6502_->Zflag());
-      iFlagCheck_->setChecked(c6502_->Iflag());
-      dFlagCheck_->setChecked(c6502_->Dflag());
-      bFlagCheck_->setChecked(c6502_->Bflag());
-      vFlagCheck_->setChecked(c6502_->Vflag());
-      nFlagCheck_->setChecked(c6502_->Nflag());
+    if (isFlagsTrace()) {
+      flagsWidgetData_.cCheck->setChecked(cpu_->Cflag());
+      flagsWidgetData_.zCheck->setChecked(cpu_->Zflag());
+      flagsWidgetData_.iCheck->setChecked(cpu_->Iflag());
+      flagsWidgetData_.dCheck->setChecked(cpu_->Dflag());
+      flagsWidgetData_.bCheck->setChecked(cpu_->Bflag());
+      flagsWidgetData_.vCheck->setChecked(cpu_->Vflag());
+      flagsWidgetData_.nCheck->setChecked(cpu_->Nflag());
     }
   }
 
   if (reg == C6502::Reg::X || reg == C6502::Reg::NONE) {
-    if (reg == C6502::Reg::NONE || isRegistersTrace())
-      xEdit_->setValue(c6502_->X());
+    if (isRegistersTrace())
+      regWidgetData_.xEdit->setValue(cpu_->X());
   }
 
   if (reg == C6502::Reg::Y || reg == C6502::Reg::NONE) {
-    if (reg == C6502::Reg::NONE || isRegistersTrace())
-      yEdit_->setValue(c6502_->Y());
+    if (isRegistersTrace())
+      regWidgetData_.yEdit->setValue(cpu_->Y());
   }
 
   if (reg == C6502::Reg::SP || reg == C6502::Reg::NONE) {
-    if (reg == C6502::Reg::NONE || isRegistersTrace())
-      spEdit_->setValue(c6502_->SP());
+    if (isRegistersTrace())
+      regWidgetData_.spEdit->setValue(cpu_->SP());
 
-    if (reg == C6502::Reg::NONE || isStackTrace())
+    if (isStackTrace())
       updateStack();
   }
 
   if (reg == C6502::Reg::PC || reg == C6502::Reg::NONE) {
-    uint pc = c6502_->PC();
+    uint pc = cpu_->PC();
 
-    if (reg == C6502::Reg::NONE || isRegistersTrace())
-      pcEdit_->setValue(pc);
+    if (isRegistersTrace())
+      regWidgetData_.pcEdit->setValue(pc);
 
-    if (reg == C6502::Reg::NONE || isBreakpointsTrace())
-      breakpointsEdit_->setText(CStrUtil::toHexString(pc, 4).c_str());
+    if (isBreakpointsTrace())
+      breakpointsWidgetData_.edit->setText(CStrUtil::toHexString(pc, 4).c_str());
 
     //----
 
-    int mem1 = memoryVBar_->value();
+    int mem1 = memoryArea_->vbar()->value();
     int mem2 = mem1 + 20;
-    int mem  = pc / 8;
+    int mem  = pc/memLineWidth();
 
-    if (reg == C6502::Reg::NONE || isMemoryTrace()) {
+    if (isMemoryTrace()) {
       if (mem < mem1 || mem > mem2) {
-        memoryVBar_->setValue(mem);
+        memoryArea_->vbar()->setValue(mem);
       }
       else {
-        memoryText_->update();
+        memoryArea_->text()->update();
       }
     }
 
     //----
 
-    if (reg == C6502::Reg::NONE || isInstructionsTrace()) {
+    if (isInstructionsTrace()) {
       uint lineNum;
 
-      if (! instructionsText_->getLineForPC(pc, lineNum))
+      if (! instructionsArea_->text()->getLineForPC(pc, lineNum))
         updateInstructions();
 
-      if (instructionsText_->getLineForPC(pc, lineNum))
-        instructionsVBar_->setValue(lineNum);
+      if (instructionsArea_->text()->getLineForPC(pc, lineNum))
+        instructionsArea_->vbar()->setValue(lineNum);
 
       //----
 
@@ -679,15 +681,15 @@ regChanged(C6502::Reg reg)
       int         alen;
       std::string astr;
 
-      c6502_->disassembleAddr(c6502_->PC(), astr, alen);
+      cpu_->disassembleAddr(cpu_->PC(), astr, alen);
 
       opData_->setText(astr.c_str());
     }
   }
 
   if (reg == C6502::Reg::SR || reg == C6502::Reg::NONE) {
-    if (reg == C6502::Reg::NONE || isRegistersTrace())
-      srEdit_->setValue(c6502_->SR());
+    if (isRegistersTrace())
+      regWidgetData_.srEdit->setValue(cpu_->SR());
   }
 }
 
@@ -712,13 +714,13 @@ memChangedI(ushort pos, ushort len)
   ushort pos1 = pos;
   ushort pos2 = pos + len;
 
-  uint lineNum1 = pos1/8;
-  uint lineNum2 = pos2/8;
+  uint lineNum1 = pos1/memLineWidth();
+  uint lineNum2 = pos2/memLineWidth();
 
   for (uint lineNum = lineNum1; lineNum <= lineNum2; ++lineNum)
-    setMemoryLine(8*lineNum);
+    setMemoryLine(memLineWidth()*lineNum);
 
-  memoryText_->update();
+  memoryArea_->text()->update();
 
   memoryDirty_ = false;
 }
@@ -739,6 +741,24 @@ traceBackChanged()
     updateTraceBack();
 }
 
+//---
+
+void
+CQ6502Dbg::
+paintEvent(QPaintEvent *e)
+{
+  if (updateNeeded_) {
+    updateNeeded_ = false;
+    updateCount   = 0;
+
+    updateAll();
+  }
+
+  QFrame::paintEvent(e);
+}
+
+//---
+
 void
 CQ6502Dbg::
 setStop(bool)
@@ -758,11 +778,11 @@ addBreakpointSlot()
 {
   uint value;
 
-  if (! CStrUtil::decodeHexString(breakpointsEdit_->text().toStdString(), &value))
-    value = c6502_->PC();
+  if (! CStrUtil::decodeHexString(breakpointsWidgetData_.edit->text().toStdString(), &value))
+    value = cpu_->PC();
 
-//if (! c6502_->isBreakpoint(value))
-//  c6502_->addBreakpoint(value);
+  if (! cpu_->isBreakpoint(value))
+    cpu_->addBreakpoint(value);
 }
 
 void
@@ -771,18 +791,18 @@ deleteBreakpointSlot()
 {
   uint value;
 
-  if (! CStrUtil::decodeHexString(breakpointsEdit_->text().toStdString(), &value))
-    value = c6502_->PC();
+  if (! CStrUtil::decodeHexString(breakpointsWidgetData_.edit->text().toStdString(), &value))
+    value = cpu_->PC();
 
-//if (c6502_->isBreakpoint(value))
-//  c6502_->removeBreakpoint(value);
+  if (cpu_->isBreakpoint(value))
+    cpu_->removeBreakpoint(value);
 }
 
 void
 CQ6502Dbg::
 clearBreakpointSlot()
 {
-  //c6502_->removeAllBreakpoints();
+  cpu_->removeAllBreakpoints();
 }
 
 void
@@ -803,14 +823,14 @@ void
 CQ6502Dbg::
 registersTraceSlot()
 {
-  setRegistersTrace(registersGroup_->isChecked());
+  setRegistersTrace(regWidgetData_.group->isChecked());
 }
 
 void
 CQ6502Dbg::
 flagsTraceSlot()
 {
-  setFlagsTrace(flagsGroup_->isChecked());
+  setFlagsTrace(flagsWidgetData_.group->isChecked());
 }
 
 void
@@ -837,7 +857,7 @@ void
 CQ6502Dbg::
 breakpointsTraceSlot()
 {
-  setBreakpointsTrace(breakpointsGroup_->isChecked());
+  setBreakpointsTrace(breakpointsWidgetData_.group->isChecked());
 }
 
 void
@@ -846,27 +866,65 @@ setTraceSlot()
 {
   bool checked = traceCheck_->isChecked();
 
-  memoryGroup_      ->setChecked(checked);
-  instructionsGroup_->setChecked(checked);
-  registersGroup_   ->setChecked(checked);
-  flagsGroup_       ->setChecked(checked);
-  stackGroup_       ->setChecked(checked);
-  traceBackGroup_   ->setChecked(checked);
-  breakpointsGroup_ ->setChecked(checked);
+  memoryGroup_                ->setChecked(checked);
+  instructionsGroup_          ->setChecked(checked);
+  regWidgetData_.group        ->setChecked(checked);
+  flagsWidgetData_.group      ->setChecked(checked);
+  stackGroup_                 ->setChecked(checked);
+  traceBackGroup_             ->setChecked(checked);
+  breakpointsWidgetData_.group->setChecked(checked);
+
+  updateAll();
 }
 
 void
 CQ6502Dbg::
 setHaltSlot()
 {
-  //c6502_->setHalt(haltCheck_->isChecked());
+  cpu_->setHalt(haltCheck_->isChecked());
+}
+
+void
+CQ6502Dbg::
+forceHalt()
+{
+  traceCheck_->setChecked(true);
+  haltCheck_ ->setChecked(true);
+
+  updateSlot();
+}
+
+void
+CQ6502Dbg::
+updateSlot()
+{
+  bool doUpdate = false;
+
+  if (traceCheck_->isChecked())
+    doUpdate = true;
+  else {
+    ++updateCount;
+
+    if (updateCount > 1000)
+      doUpdate = true;
+  }
+
+  if (doUpdate) {
+    updateNeeded_ = true;
+
+    update();
+
+    processEvents();
+  }
 }
 
 void
 CQ6502Dbg::
 runSlot()
 {
-  //c6502_->execute();
+  haltCheck_->setChecked(false);
+
+  cpu_->run();
 
   updateAll();
 }
@@ -875,7 +933,7 @@ void
 CQ6502Dbg::
 nextSlot()
 {
-  //c6502_->next();
+  //cpu_->next();
 
   updateAll();
 }
@@ -884,7 +942,7 @@ void
 CQ6502Dbg::
 stepSlot()
 {
-  c6502_->step();
+  cpu_->step();
 
   updateAll();
 }
@@ -893,7 +951,9 @@ void
 CQ6502Dbg::
 continueSlot()
 {
-  //c6502_->cont();
+  haltCheck_->setChecked(false);
+
+  cpu_->cont();
 
   updateAll();
 }
@@ -902,7 +962,7 @@ void
 CQ6502Dbg::
 stopSlot()
 {
-  //c6502_->stop();
+  //cpu_->stop();
 
   updateAll();
 }
@@ -911,9 +971,9 @@ void
 CQ6502Dbg::
 restartSlot()
 {
-  c6502_->reset();
+  cpu_->reset();
 
-  //c6502_->setPC(c6502_->getLoadPos());
+  //cpu_->setPC(cpu_->getLoadPos());
 
   updateAll();
 }
@@ -934,4 +994,11 @@ updateAll()
   memChangedI(0, 65535);
 
   update();
+}
+
+QSize
+CQ6502Dbg::
+sizeHint() const
+{
+  return QSize(1600, 1200);
 }

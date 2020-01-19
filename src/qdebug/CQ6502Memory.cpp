@@ -1,9 +1,55 @@
 #include <CQ6502Memory.h>
 #include <CQ6502Dbg.h>
+#include <CQUtil.h>
+
+#include <QScrollBar>
+#include <QHBoxLayout>
 #include <QMenu>
 #include <QContextMenuEvent>
 #include <QPainter>
 #include <cassert>
+
+CQ6502MemArea::
+CQ6502MemArea(CQ6502Dbg *dbg) :
+ QFrame(nullptr), dbg_(dbg)
+{
+  setObjectName("memArea");
+
+  auto layout = CQUtil::makeLayout<QHBoxLayout>(this, 2, 2);
+
+  //---
+
+  text_ = new CQ6502Mem(dbg_);
+
+  text_->setFont(dbg_->getFixedFont());
+
+  //---
+
+  vbar_ = CQUtil::makeWidget<QScrollBar>("vbar");
+
+  connect(vbar_, SIGNAL(valueChanged(int)), text_, SLOT(sliderSlot(int)));
+
+  //---
+
+  layout->addWidget(text_);
+  layout->addStretch();
+  layout->addWidget(vbar_);
+
+  //---
+
+  updateLayout();
+}
+
+void
+CQ6502MemArea::
+updateLayout()
+{
+  vbar_->setPageStep  (dbg_->getNumMemoryLines());
+  vbar_->setSingleStep(1);
+  vbar_->setRange     (0, text_->maxLines() - vbar_->pageStep());
+}
+
+//------
 
 CQ6502Mem::
 CQ6502Mem(CQ6502Dbg *dbg) :
@@ -11,7 +57,14 @@ CQ6502Mem(CQ6502Dbg *dbg) :
 {
   setObjectName("mem");
 
-  lines_.resize(8192);
+  initLines();
+}
+
+int
+CQ6502Mem::
+maxLines() const
+{
+  return 65536/dbg_->memLineWidth();
 }
 
 void
@@ -20,31 +73,62 @@ setFont(const QFont &font)
 {
   QWidget::setFont(font);
 
-  QFontMetrics fm(font);
+  updateSize();
+}
 
-  int memoryWidth = fm.width("0000  00 00 00 00 00 00 00 00  XXXXXXXX");
-  int charHeight  = fm.height();
+void
+CQ6502Mem::
+updateSize()
+{
+  if (resizable_) {
+    QFontMetrics fm(font());
 
-  setFixedWidth (memoryWidth + 32);
-  setFixedHeight(charHeight*dbg_->getNumMemoryLines());
+    int charHeight = fm.height();
+
+    int nl = std::min(std::max(height()/charHeight, minLines()), maxLines());
+
+    if (nl != dbg_->getNumMemoryLines())
+      dbg_->setNumMemoryLines(nl);
+  }
+  else {
+    QSize s = sizeHint();
+
+    setFixedWidth (s.width ());
+    setFixedHeight(s.height());
+  }
+}
+
+void
+CQ6502Mem::
+initLines()
+{
+  lines_.resize(maxLines());
 }
 
 void
 CQ6502Mem::
 setLine(uint pc, const std::string &pcStr, const std::string &memStr, const std::string &textStr)
 {
-  uint lineNum = pc / 8;
+  uint lineNum = pc/dbg_->memLineWidth();
 
   assert(lineNum < lines_.size());
 
-  lines_[lineNum] = CQ6502MemLine(pc, pcStr, memStr, textStr);
+  lines_[lineNum] = CQ6502MemLine(pc, dbg_->memLineWidth(), pcStr, memStr, textStr);
+}
+
+void
+CQ6502Mem::
+resizeEvent(QResizeEvent *)
+{
+  if (resizable_)
+    updateSize();
 }
 
 void
 CQ6502Mem::
 contextMenuEvent(QContextMenuEvent *event)
 {
-  QMenu *menu = new QMenu;
+  QMenu *menu = CQUtil::makeWidget<QMenu>("menu");
 
   QAction *action = menu->addAction("Dump");
 
@@ -59,7 +143,7 @@ void
 CQ6502Mem::
 paintEvent(QPaintEvent *)
 {
-  C6502 *c6502 = dbg_->get6502();
+  C6502 *c6502 = dbg_->getCPU();
 
   uint pc = c6502->PC();
 
@@ -77,10 +161,12 @@ paintEvent(QPaintEvent *)
 
   int charAscent = fm.ascent();
 
-  int w1 =  4*charWidth_; // address (4 digits)
-  int w2 =    charWidth_; // spacer (1 char)
-  int w3 = 23*charWidth_; // data (16 digits + 7 spaces)
-  int w4 =    charWidth_; // spacer (1 char)
+  int lw = dbg_->memLineWidth();
+
+  int w1 =          4*charWidth_; // address (4 digits)
+  int w2 =            charWidth_; // spacer (1 char)
+  int w3 = (3*lw - 1)*charWidth_; // data (2*lw digits + (lw - 1) spaces)
+  int w4 =            charWidth_; // spacer (1 char)
 
   int y  = -yOffset_*charHeight_;
   int ya = y + charAscent;
@@ -96,16 +182,14 @@ paintEvent(QPaintEvent *)
       int x = dx_;
 
       uint pc1 = line.pc();
-      uint pc2 = pc1 + 8;
+      uint pc2 = pc1 + lw;
 
-#if 0
       if (isEnabled()) {
-        if      (c6502->isReadOnly(pc1, 8))
+        if      (c6502->isReadOnly(pc1, lw))
           p.fillRect(QRect(x + w1 + w2, y, w3, charHeight_), dbg_->readOnlyBgColor());
-        else if (c6502->isScreen(pc1, 8))
+        else if (c6502->isScreen(pc1, lw))
           p.fillRect(QRect(x + w1 + w2, y, w3, charHeight_), dbg_->screenBgColor());
       }
-#endif
 
       if (isEnabled())
         p.setPen(dbg_->addrColor());
@@ -163,9 +247,9 @@ mouseDoubleClickEvent(QMouseEvent *e)
   if (ix < 4 || ix >= 28  ) return;
   if (iy < 0 || iy >= 8192) return;
 
-  uint pc = int((ix - 4)/3) + iy*8;
+  uint pc = int((ix - 4)/3) + iy*dbg_->memLineWidth();
 
-  C6502 *c6502 = dbg_->get6502();
+  C6502 *c6502 = dbg_->getCPU();
 
   c6502->setPC(pc);
 
@@ -194,4 +278,28 @@ dumpSlot()
   }
 
   fclose(fp);
+}
+
+QSize
+CQ6502Mem::
+sizeHint() const
+{
+  QFontMetrics fm(font());
+
+  int charWidth  = fm.width("X");
+  int charHeight = fm.height();
+
+  int lw = dbg_->memLineWidth();
+
+  int memoryWidth = 0;
+
+  memoryWidth +=    4*charWidth; // "0000"
+  memoryWidth += lw*3*charWidth; // " 00" per memory byte
+  memoryWidth +=    2*charWidth; // "  "
+  memoryWidth +=   lw*charWidth; // <char> per byte
+
+  int w = memoryWidth + 2*dx_;
+  int h = charHeight*dbg_->getNumMemoryLines();
+
+  return QSize(w, h);
 }

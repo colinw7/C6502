@@ -34,14 +34,21 @@ void
 C6502::
 resetNMI()
 {
+  setBFlag(false);
+  setXFlag(true);
+
   // save state for RTI
   pushWord(PC() + 2);
   pushByte(SR());
+
+  setIFlag(true);
 
   // jump to NMI interrupt vector
   setPC(NMI());
 
   incT(7);
+
+  handleNMI();
 }
 
 // Reset
@@ -60,19 +67,24 @@ void
 C6502::
 resetIRQ()
 {
-  if (! Iflag())
+  if (Iflag())
     return;
+
+  setBFlag(false);
+  setXFlag(true);
 
   // save state for RTI
   pushWord(PC() + 2);
   pushByte(SR());
 
-  setBFlag(true);
+  setIFlag(true);
 
   // jump to IRQ interrupt vector
   setPC(IRQ());
 
   incT(7);
+
+  handleIRQ();
 }
 
 void
@@ -80,10 +92,10 @@ C6502::
 resetBRK()
 {
   // save state for RTI
-  pushWord(PC() + 2);
+  pushWord(PC() + 1);
   pushByte(SR());
 
-  setBFlag(false);
+  setIFlag(true);
 
   // jump to IRQ interrupt vector
   setPC(IRQ());
@@ -105,21 +117,42 @@ load64Rom()
 
 bool
 C6502::
+run()
+{
+  return run(org());
+}
+
+bool
+C6502::
 run(ushort addr)
 {
   reset();
 
   setPC(addr);
 
-  printState();
+  update();
 
-  while (true) {
+  return cont();
+}
+
+bool
+C6502::
+cont()
+{
+  break_ = false;
+
+  while (! isHalt()) {
     step();
 
-    printState();
+    update();
 
-    if (Iflag())
+    if (break_)
       break;
+
+    if (isBreakpoint(PC())) {
+      breakpointHit();
+      break;
+    }
   }
 
   return true;
@@ -137,7 +170,15 @@ step()
 
   switch (c) {
     case 0x00: { // BRK implicit
+      setBFlag(true);
+      setXFlag(true);
+
       resetBRK();
+
+      break_ = true;
+
+      handleBreak();
+
       break;
     }
 
@@ -368,6 +409,9 @@ step()
     //---
 
     case 0x08: { // PHP implied (Push Processor Status)
+      setBFlag(true);
+      setXFlag(true);
+
       pushByte(SR()); incT(3); break;
     }
 
@@ -380,7 +424,7 @@ step()
     }
 
     case 0x68: { // PLA implied (Pull A)
-      setA(popByte()); incT(3); break;
+      setA(popByte()); setNZFlags(A()); incT(3); break;
     }
 
     //---
@@ -390,8 +434,12 @@ step()
     case 0x10: { // BPL (Branch Positive Result)
       schar d = readSByte();
 
-      if (! Nflag())
+      if (! Nflag()) {
         setPC(PC() + d);
+
+        if (d == -2)
+          illegalJump();
+      }
 
       incT(2);
 
@@ -399,11 +447,19 @@ step()
     }
 
     case 0x20: { // JSR (Jump Save Return)
-      pushWord(PC() + 2);
+      ushort oldPC = PC();
+
+      pushWord(PC() + 1); // next address (PC + 2) - 1
 
       setPC(readWord());
 
       incT(6);
+
+      if (isJumpPoint(PC()))
+        jumpPointHit(c);
+
+      if (PC() == oldPC - 1)
+        illegalJump();
 
       break;
     }
@@ -411,8 +467,12 @@ step()
     case 0x30: { // BMI (Branch Negative Result)
       schar d = readSByte();
 
-      if (Nflag())
+      if (Nflag()) {
         setPC(PC() + d);
+
+        if (d == -2)
+          illegalJump();
+      }
 
       incT(2);
 
@@ -422,8 +482,12 @@ step()
     case 0x50: { // BVC (Branch Overflow Clear)
       schar d = readSByte();
 
-      if (! Vflag())
+      if (! Vflag()) {
         setPC(PC() + d);
+
+        if (d == -2)
+          illegalJump();
+      }
 
       incT(2);
 
@@ -433,8 +497,12 @@ step()
     case 0x70: { // BVS (Branch Overflow Set)
       schar d = readSByte();
 
-      if (Vflag())
+      if (Vflag()) {
         setPC(PC() + d);
+
+        if (d == -2)
+          illegalJump();
+      }
 
       incT(2);
 
@@ -444,8 +512,12 @@ step()
     case 0x90: { // BCC (Branch Carry Clear)
       schar d = readSByte();
 
-      if (! Cflag())
+      if (! Cflag()) {
         setPC(PC() + d);
+
+        if (d == -2)
+          illegalJump();
+      }
 
       incT(2);
 
@@ -455,8 +527,12 @@ step()
     case 0xB0: { // BCS (Branch Carry Set)
       schar d = readSByte();
 
-      if (Cflag())
+      if (Cflag()) {
         setPC(PC() + d);
+
+        if (d == -2)
+          illegalJump();
+      }
 
       incT(2);
 
@@ -466,8 +542,12 @@ step()
     case 0xD0: { // BNE (Branch Zero Clear)
       schar d = readSByte();
 
-      if (! Zflag())
+      if (! Zflag()) {
         setPC(PC() + d);
+
+        if (d == -2)
+          illegalJump();
+      }
 
       incT(2);
 
@@ -477,8 +557,12 @@ step()
     case 0xF0: { // BEQ (Branch Zero Set)
       schar d = readSByte();
 
-      if (Zflag())
+      if (Zflag()) {
         setPC(PC() + d);
+
+        if (d == -2)
+          illegalJump();
+      }
 
       incT(2);
 
@@ -486,11 +570,31 @@ step()
     }
 
     case 0x4C: { // JMP absolute
-      setPC(readWord()); incT(3); break;
+      ushort oldPC = PC();
+
+      setPC(readWord()); incT(3);
+
+      if (isJumpPoint(PC()))
+        jumpPointHit(c);
+
+      if (PC() == oldPC - 1)
+        illegalJump();
+
+      break;
     }
 
     case 0x6C: { // JMP indirect (???)
-      setPC(getWord(readWord())); incT(3); break;
+      ushort oldPC = PC();
+
+      setPC(getWord(readWord())); incT(3);
+
+      if (isJumpPoint(PC()))
+        jumpPointHit(c);
+
+      if (PC() == oldPC - 1)
+        illegalJump();
+
+      break;
     }
 
     case 0x40: { // RTI (Return from Interrupt)
@@ -503,7 +607,7 @@ step()
     }
 
     case 0x60: { // RTS (Return from Subroutine)
-      setPC(popWord());
+      setPC(popWord() + 1); // JSR pushed return address - 1
 
       incT(6);
 
@@ -516,134 +620,50 @@ step()
 
     // CPY ...
     case 0xC0: { // CPY immediate
-      uchar c1 = readByte(); bool C = (Y() < c1); uchar c2 = (Y() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(2);
-
-      break;
+      uchar c1 = readByte();          cpyOp(c1); incT(2); break;
     }
     case 0xC4: { // CPY zero page
-      uchar c1 = getByte(readByte()); bool C = (Y() < c1); uchar c2 = (Y() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(3);
-
-      break;
+      uchar c1 = getByte(readByte()); cpyOp(c1); incT(3); break;
     }
     case 0xCC: { // CPY absolute
-      uchar c1 = getByte(readWord()); bool C = (Y() < c1); uchar c2 = (Y() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(4);
-
-      break;
+      uchar c1 = getByte(readWord()); cpyOp(c1); incT(4); break;
     }
 
     // CPX ...
     case 0xE0: { // CPX immediate
-      uchar c1 = readByte(); bool C = (X() < c1); uchar c2 = (X() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(2);
-
-      break;
+      uchar c1 = readByte();          cpxOp(c1); incT(2); break;
     }
     case 0xE4: { // CPX zero page
-      uchar c1 = getByte(readByte()); bool C = (X() < c1); uchar c2 = (X() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(3);
-
-      break;
+      uchar c1 = getByte(readByte()); cpxOp(c1); incT(3); break;
     }
     case 0xEC: { // CPX absolute
-      uchar c1 = getByte(readWord()); bool C = (X() < c1); uchar c2 = (X() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(4);
-
-      break;
+      uchar c1 = getByte(readWord()); cpxOp(c1); incT(4); break;
     }
 
     // CMP ...
     case 0xC1: { // CMP (indirect,X)
-      uchar c1 = memIndexedIndirectX(readByte()); bool C = (A() < c1); uchar c2 = (A() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(5);
-
-      break;
+      uchar c1 = memIndexedIndirectX(readByte()); cmpOp(c1); incT(5); break;
     }
     case 0xC5: { // CMP zero page
-      uchar c1 = getByte(readByte()); bool C = (A() < c1); uchar c2 = (A() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(3);
-
-      break;
+      uchar c1 = getByte(readByte());             cmpOp(c1); incT(3); break;
     }
     case 0xC9: { // CMP immediate
-      uchar c1 = readByte(); bool C = (A() < c1); uchar c2 = (A() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(2);
-
-      break;
+      uchar c1 = readByte();                      cmpOp(c1); incT(2); break;
     }
     case 0xCD: { // CMP absolute
-      uchar c1 = getByte(readWord()); bool C = (A() < c1); uchar c2 = (A() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(4);
-
-      break;
+      uchar c1 = getByte(readWord());             cmpOp(c1); incT(4); break;
     }
     case 0xD1: { // CMP (indirect),Y
-      uchar c1 = memIndirectIndexedY(readByte()); bool C = (A() < c1); uchar c2 = (A() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(5);
-
-      break;
+      uchar c1 = memIndirectIndexedY(readByte()); cmpOp(c1); incT(5); break;
     }
     case 0xD5: { // CMP zero page,X
-      uchar c1 = getByte(readByte() + X()); bool C = (A() < c1); uchar c2 = (A() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(4);
-
-      break;
+      uchar c1 = getByte(readByte() + X());       cmpOp(c1); incT(4); break;
     }
     case 0xD9: { // CMP absolute,Y
-      uchar c1 = getByte(readWord() + Y()); bool C = (A() < c1); uchar c2 = (A() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(4);
-
-      break;
+      uchar c1 = getByte(readWord() + Y());       cmpOp(c1); incT(4); break;
     }
     case 0xDD: { // CMP absolute,X
-      uchar c1 = getByte(readWord() + X()); bool C = (A() < c1); uchar c2 = (A() - c1);
-
-      setNZCFlags(c2, C);
-
-      incT(4);
-
-      break;
+      uchar c1 = getByte(readWord() + X());       cmpOp(c1); incT(4); break;
     }
 
     //---
@@ -722,14 +742,14 @@ step()
       setByte(readWord(), X()); incT(4); break;
     }
     case 0x96: { // STX zero page,Y
-      setByte(readByte() + Y(), Y()); incT(4); break;
+      setByte(readByte() + Y(), X()); incT(4); break;
     }
 
     case 0x8A: { // TXA
-      setA(X()); setNZFlags(); incT(2); break;
+      setA(X()); setNZFlags(A()); incT(2); break;
     }
     case 0x9A: { // TXS
-      setSR(X()); incT(2); break;
+      setSP(X()); incT(2); break;
     }
     case 0xAA: { // TAX
       setX(A()); setNZFlags(X()); incT(2); break;
@@ -739,7 +759,7 @@ step()
     }
 
     case 0x98: { // TYA
-      setA(Y()); setNZFlags(); incT(2); break;
+      setA(Y()); setNZFlags(A()); incT(2); break;
     }
     case 0xA8: { // TAY
       setY(A()); setNZFlags(Y()); incT(2); break;
@@ -787,7 +807,7 @@ step()
       setA(getByte(readByte())); setNZFlags(A()); incT(3); break;
     }
     case 0xA9: { // LDA immediate
-      setA(readByte()); setNZFlags(X()); incT(2); break;
+      setA(readByte()); setNZFlags(A()); incT(2); break;
     }
     case 0xAD: { // LDA absolute
       setA(getByte(readWord())); setNZFlags(A()); incT(4); break;
@@ -909,6 +929,14 @@ step()
       assert(false);
       break;
   }
+}
+
+void
+C6502::
+update()
+{
+  if (isDebug())
+    printState();
 }
 
 //---
@@ -1122,10 +1150,10 @@ bool
 C6502::
 assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
 {
-  auto addByte = [&](ushort c) { mem_[addr++] = (c & 0xFF); };
+  auto addByte = [&](ushort c) { setByte(addr++, c & 0xFF); };
   auto addWord = [&](ushort c) { addByte(c & 0x00FF); addByte((c & 0xFF00) >> 8); };
 
-  auto addRelative = [&](schar c) { mem_[addr++] = c; };
+  auto addRelative = [&](schar c) { setByte(addr++, c); };
 
   auto addOp     = [&](ushort op) { addByte(op); return true; };
   auto addOpByte = [&](ushort op, ushort value) { addOp(op); addByte(value); return true; };
@@ -1942,7 +1970,7 @@ decodeAssembleArg(const std::string &arg, ArgMode &mode, XYMode &xyMode, ushort 
     mode = ArgMode::A;
     vlen = 2;
   }
-  
+
   // <label>
   else {
     mode = ArgMode::MEMORY;
@@ -2023,7 +2051,10 @@ disassembleAddr(ushort addr, std::string &str, int &len) const
 
   bool rc = disassembleAddr(addr1, ss);
 
-  len = addr1 - addr;
+  if (addr1 < addr) // wrapped
+    len = 65536 - addr;
+  else
+    len = addr1 - addr;
 
   std::string sstr = ss.str();
 
@@ -2378,7 +2409,8 @@ void
 C6502::
 print(ushort addr, int len)
 {
-  printState ();
+  printState();
+
   printMemory(addr, len);
 }
 
@@ -2454,4 +2486,28 @@ printMemory(ushort addr, int len)
 
     std::cout << "\n";
   }
+}
+
+bool
+C6502::
+loadBin(const std::string &str)
+{
+  FILE *fp = fopen(str.c_str(), "r");
+  if (! fp) return false;
+
+  int i = 0;
+  int c = 0;
+
+  while ((c = fgetc(fp)) != EOF) {
+    setByte(i, c & 0xFF);
+
+    ++i;
+
+    if (i >= 65536)
+      break;
+  }
+
+  fclose(fp);
+
+  return true;
 }

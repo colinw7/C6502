@@ -1,12 +1,59 @@
 #include <CQ6502Instructions.h>
 #include <CQ6502Dbg.h>
-
+#include <CQUtil.h>
 #include <CStrUtil.h>
+
+#include <QScrollBar>
+#include <QHBoxLayout>
 #include <QMenu>
 #include <QScrollBar>
 #include <QContextMenuEvent>
 #include <QPainter>
 #include <cassert>
+
+CQ6502InstArea::
+CQ6502InstArea(CQ6502Dbg *dbg) :
+ QFrame(nullptr), dbg_(dbg)
+{
+  setObjectName("instArea");
+
+  auto layout = CQUtil::makeLayout<QHBoxLayout>(this, 2, 2);
+
+  //---
+
+  text_ = new CQ6502Inst(dbg_);
+
+  text_->setFont(dbg_->getFixedFont());
+
+  //---
+
+  vbar_ = CQUtil::makeWidget<QScrollBar>("vbar");
+
+  connect(vbar_, SIGNAL(valueChanged(int)), text_, SLOT(sliderSlot(int)));
+
+  text_->setVBar(vbar_);
+
+  //---
+
+  layout->addWidget(text_);
+  layout->addStretch();
+  layout->addWidget(vbar_);
+
+  //---
+
+  updateLayout();
+}
+
+void
+CQ6502InstArea::
+updateLayout()
+{
+  vbar_->setPageStep  (dbg_->getNumMemoryLines());
+  vbar_->setSingleStep(1);
+  vbar_->setRange     (0, 8192 - vbar_->pageStep());
+}
+
+//------
 
 CQ6502Inst::
 CQ6502Inst(CQ6502Dbg *dbg) :
@@ -14,7 +61,7 @@ CQ6502Inst(CQ6502Dbg *dbg) :
 {
   setObjectName("inst");
 
-  lines_.resize(65536);
+  lines_.resize(maxLines());
 }
 
 void
@@ -23,13 +70,29 @@ setFont(const QFont &font)
 {
   QWidget::setFont(font);
 
-  QFontMetrics fm(font);
+  updateSize();
+}
 
-  int instructionsWidth = fm.width("0000  123456789012  AAAAAAAAAAAAAAAAAA");
-  int charHeight        = fm.height();
+void
+CQ6502Inst::
+updateSize()
+{
+  if (resizable_) {
+    QFontMetrics fm(font());
 
-  setFixedWidth (instructionsWidth + 32);
-  setFixedHeight(charHeight*dbg_->getNumMemoryLines());
+    int charHeight = fm.height();
+
+    int nl = std::min(std::max(height()/charHeight, minLines()), maxLines());
+
+    if (nl != dbg_->getNumMemoryLines())
+      dbg_->setNumMemoryLines(nl);
+  }
+  else {
+    QSize s = sizeHint();
+
+    setFixedWidth (s.width ());
+    setFixedHeight(s.height());
+  }
 }
 
 void
@@ -46,7 +109,7 @@ void
 CQ6502Inst::
 setLine(uint pc, const std::string &pcStr, const std::string &codeStr, const std::string &textStr)
 {
-  assert(lineNum_ < int(lines_.size()));
+  assert(pc < 65536 && lineNum_ < int(lines_.size()));
 
   lines_[lineNum_] = CQ6502InstLine(pc, pcStr, codeStr, textStr);
 
@@ -81,7 +144,7 @@ void
 CQ6502Inst::
 contextMenuEvent(QContextMenuEvent *event)
 {
-  QMenu *menu = new QMenu;
+  QMenu *menu = CQUtil::makeWidget<QMenu>("menu");
 
   QAction *dumpAction = menu->addAction("Dump");
 
@@ -100,9 +163,9 @@ void
 CQ6502Inst::
 paintEvent(QPaintEvent *)
 {
-  C6502 *c6502 = dbg_->get6502();
+  auto cpu = dbg_->getCPU();
 
-  uint pc = c6502->PC();
+  uint pc = cpu->PC();
 
   QPainter p(this);
 
@@ -118,8 +181,8 @@ paintEvent(QPaintEvent *)
   int charWidth  = fm.width(" ");
   int charAscent = fm.ascent();
 
-  int w1 =  4*charWidth;
-  int w2 = 12*charWidth;
+  int w1 =  4*charWidth; // address
+  int w2 = 12*charWidth; // instruction bytes
 
   int y = -yOffset_*charHeight_ + charAscent;
 
@@ -172,11 +235,11 @@ mouseDoubleClickEvent(QMouseEvent *e)
 {
   int iy = (e->pos().y() + yOffset_*charHeight_)/charHeight_;
 
-  C6502 *c6502 = dbg_->get6502();
+  auto cpu = dbg_->getCPU();
 
-  c6502->setPC(getPCForLine(iy));
+  cpu->setPC(getPCForLine(iy));
 
-  //c6502->callRegChanged(C6502::Reg::PC);
+  //cpu->callRegChanged(C6502::Reg::PC);
 }
 
 void
@@ -209,11 +272,11 @@ reloadSlot()
 {
   reload();
 
-  C6502 *c6502 = dbg_->get6502();
+  auto cpu = dbg_->getCPU();
 
   uint lineNum;
 
-  if (getLineForPC(c6502->PC(), lineNum))
+  if (getLineForPC(cpu->PC(), lineNum))
     vbar_->setValue(lineNum);
 
 }
@@ -222,7 +285,7 @@ void
 CQ6502Inst::
 reload()
 {
-  C6502 *c6502 = dbg_->get6502();
+  auto cpu = dbg_->getCPU();
 
   uint pos1 = 0;
   uint pos2 = 65536;
@@ -234,8 +297,8 @@ reload()
 
   while (pc < pos2) {
     // resync to PC (should be legal instruction here)
-    if (! pcFound && pc >= c6502->PC()) {
-      pc      = c6502->PC();
+    if (! pcFound && pc >= cpu->PC()) {
+      pc      = cpu->PC();
       pcFound = true;
     }
 
@@ -251,10 +314,12 @@ reload()
 
     uint pc1;
 
-    if (c6502->disassembleAddr(pc, astr, alen))
+    if (cpu->disassembleAddr(pc, astr, alen))
       pc1 = pc + alen;
     else
       pc1 = pc + 1;
+
+    assert(pc1 > pc);
 
     //-----
 
@@ -265,7 +330,7 @@ reload()
     for (uint i = pc; i < pc1; ++i) {
       if (i > pc) codeStr += " ";
 
-      codeStr += CStrUtil::toHexString(c6502->getByte(i), 2);
+      codeStr += CStrUtil::toHexString(cpu->getByte(i), 2);
 
       len1 += 3;
     }
@@ -280,6 +345,7 @@ reload()
     textStr += astr;
 
     setLine(pc, pcStr, codeStr, textStr);
+//std::cerr << pcStr << " : " << codeStr << textStr << "\n";
 
     //------
 
@@ -293,4 +359,19 @@ reload()
   vbar_->setValue(0);
 
   update();
+}
+
+QSize
+CQ6502Inst::
+sizeHint() const
+{
+  QFontMetrics fm(font());
+
+  int instructionsWidth = fm.width("0000  123456789012  AAAAAAAAAAAAAAAAAA");
+  int charHeight        = fm.height();
+
+  int w = instructionsWidth + 32;
+  int h = charHeight*dbg_->getNumMemoryLines();
+
+  return QSize(w, h);
 }

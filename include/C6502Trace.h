@@ -8,7 +8,7 @@ using ushort = unsigned short;
 
 class C6502Trace {
  public:
-  C6502Trace(C6502 &c6502_i) : c6502(c6502_i) { }
+  C6502Trace(C6502 *cpu) : cpu_(cpu) { }
 
   virtual ~C6502Trace() { }
 
@@ -29,7 +29,7 @@ class C6502Trace {
   virtual void setHalt(bool) { }
 
  protected:
-  C6502 &c6502;
+  C6502 *cpu_ { nullptr };
 };
 
 #endif
