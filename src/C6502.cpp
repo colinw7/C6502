@@ -1,7 +1,6 @@
 #include <C6502.h>
 #include <algorithm>
 #include <iostream>
-#include <iomanip>
 #include <cassert>
 
 #include <c64_basic.h>
@@ -162,10 +161,6 @@ void
 C6502::
 step()
 {
-  auto hex02 = [&](std::ostream &os, uchar value) {
-    os << std::setfill('0') << std::setw(2) << std::right << std::hex << int(value);
-  };
-
   auto c = readByte();
 
   switch (c) {
@@ -186,224 +181,224 @@ step()
 
     // AND ...
     case 0x21: { // AND (indirect,X)
-      andOp(memIndexedIndirectX(readByte())); incT(6); break;
+      andOp(getMemIndexedIndirectX()); incT(6); break;
     }
     case 0x25: { // AND zero page
-      andOp(getByte(readByte())); incT(3); break;
+      andOp(getZeroPage()); incT(3); break;
     }
     case 0x29: { // AND immediate
       andOp(readByte()); incT(2); break;
     }
     case 0x2D: { // AND absolute
-      andOp(getByte(readWord())); incT(4); break;
+      andOp(getAbsolute()); incT(4); break;
     }
     case 0x31: { // AND (indirect),Y
-      andOp(memIndirectIndexedY(readByte())); incT(5); break;
+      andOp(getMemIndirectIndexedY()); incT(5); break;
     }
     case 0x35: { // AND zero page,X
-      andOp(getByte(readByte() + X())); incT(4); break;
+      andOp(getZeroPageX()); incT(4); break;
     }
     case 0x39: { // AND absolute,Y
-      andOp(getByte(readWord() + Y())); incT(4); break;
+      andOp(getAbsoluteY()); incT(4); break;
     }
     case 0x3D: { // AND absolute,X
-      andOp(getByte(readWord() + X())); incT(4); break;
+      andOp(getAbsoluteX()); incT(4); break;
     }
 
     //---
 
     // ORA ...
     case 0x01: { // ORA (indirect,X)
-      orOp(memIndexedIndirectX(readByte())); incT(6); break;
+      orOp(getMemIndexedIndirectX()); incT(6); break;
     }
     case 0x05: { // ORA zero page
-      orOp(getByte(readByte())); incT(3); break;
+      orOp(getZeroPage()); incT(3); break;
     }
     case 0x09: { // ORA immediate
       orOp(readByte()); incT(2); break;
     }
     case 0x0D: { // ORA absolute
-      orOp(getByte(readWord())); incT(4); break;
+      orOp(getAbsolute()); incT(4); break;
     }
     case 0x11: { // ORA (indirect),Y
-      orOp(memIndirectIndexedY(readByte())); incT(5); break;
+      orOp(getMemIndirectIndexedY()); incT(5); break;
     }
     case 0x15: { // ORA zero page,X
-      orOp(getByte(readByte() + X())); incT(4); break;
+      orOp(getZeroPageX()); incT(4); break;
     }
     case 0x19: { // ORA absolute,Y
-      orOp(getByte(readWord() + Y())); incT(4); break;
+      orOp(getAbsoluteY()); incT(4); break;
     }
     case 0x1D: { // ORA absolute,X
-      orOp(getByte(readWord() + X())); incT(4); break;
+      orOp(getAbsoluteX()); incT(4); break;
     }
 
     //---
 
     // EOR ...
     case 0x41: { // EOR (indirect,X)
-      eorOp(memIndexedIndirectX(readByte())); incT(6); break;
+      eorOp(getMemIndexedIndirectX()); incT(6); break;
     }
     case 0x45: { // EOR zero page
-      eorOp(getByte(readByte())); incT(3); break;
+      eorOp(getZeroPage()); incT(3); break;
     }
     case 0x49: { // EOR immediate
       eorOp(readByte()); incT(2); break;
     }
     case 0x4D: { // EOR absolute
-      eorOp(getByte(readWord())); incT(4); break;
+      eorOp(getAbsolute()); incT(4); break;
     }
     case 0x51: { // EOR (indirect),Y
-      eorOp(memIndirectIndexedY(readByte())); incT(5); break;
+      eorOp(getMemIndirectIndexedY()); incT(5); break;
     }
     case 0x55: { // EOR zero page,X
-      eorOp(getByte(readByte() + X())); incT(4); break;
+      eorOp(getZeroPageX()); incT(4); break;
     }
     case 0x59: { // EOR absolute,Y
-      eorOp(getByte(readWord() + Y())); incT(4); break;
+      eorOp(getAbsoluteY()); incT(4); break;
     }
     case 0x5D: { // EOR absolute,X
-      eorOp(getByte(readWord() + X())); incT(4); break;
+      eorOp(getAbsoluteX()); incT(4); break;
     }
 
     //---
 
     // ADC ...
     case 0x61: { // ADC (indirect,X)
-      adcOp(memIndexedIndirectX(readByte())); incT(6); break;
+      adcOp(getMemIndexedIndirectX()); incT(6); break;
     }
     case 0x65: { // ADC zero page
-      adcOp(getByte(readByte())); incT(3); break;
+      adcOp(getZeroPage()); incT(3); break;
     }
     case 0x69: { // ADC immediate
       adcOp(readByte()); incT(2); break;
     }
     case 0x6D: { // ADC absolute
-      adcOp(getByte(readWord())); incT(4); break;
+      adcOp(getAbsolute()); incT(4); break;
     }
     case 0x71: { // ADC (indirect),Y
-      adcOp(memIndirectIndexedY(readByte())); incT(5); break;
+      adcOp(getMemIndirectIndexedY()); incT(5); break;
     }
     case 0x75: { // ADC zero page,X
-      adcOp(getByte(readByte() + X())); incT(4); break;
+      adcOp(getZeroPageX()); incT(4); break;
     }
     case 0x79: { // ADC absolute,Y
-      adcOp(getByte(readWord() + Y())); incT(4); break;
+      adcOp(getAbsoluteY()); incT(4); break;
     }
     case 0x7D: { // ADC absolute,X
-      adcOp(getByte(readWord() + X())); incT(4); break;
+      adcOp(getAbsoluteX()); incT(4); break;
     }
 
     //---
 
     // SBC ...
     case 0xE1: { // SBC (indirect,X)
-      sbcOp(memIndexedIndirectX(readByte())); incT(6); break;
+      sbcOp(getMemIndexedIndirectX()); incT(6); break;
     }
     case 0xE5: { // SBC zero page
-      sbcOp(getByte(readByte())); incT(3); break;
+      sbcOp(getZeroPage()); incT(3); break;
     }
     case 0xE9: { // SBC immediate
       sbcOp(readByte()); incT(2); break;
     }
     case 0xED: { // SBC absolute
-      sbcOp(getByte(readWord())); incT(4); break;
+      sbcOp(getAbsolute()); incT(4); break;
     }
     case 0xF1: { // SBC (indirect),Y
-      sbcOp(memIndirectIndexedY(readByte())); incT(5); break;
+      sbcOp(getMemIndirectIndexedY()); incT(5); break;
     }
     case 0xF5: { // SBC zero page,X
-      sbcOp(getByte(readByte() + X())); incT(4); break;
+      sbcOp(getZeroPageX()); incT(4); break;
     }
     case 0xF9: { // SBC absolute,Y
-      sbcOp(getByte(readWord() + Y())); incT(4); break;
+      sbcOp(getAbsoluteY()); incT(4); break;
     }
     case 0xFD: { // SBC absolute,X
-      sbcOp(getByte(readWord() + X())); incT(4); break;
+      sbcOp(getAbsoluteX()); incT(4); break;
     }
 
     //---
 
     // Bit functions
 
-    case 0x06: { // ASL zero page
-      aslOp(getByte(readByte())); incT(5); break;
-    }
     case 0x0A: { // ASL A
-      aslOp(readByte()); incT(2); break;
+      aslOp(A()); incT(2); break;
     }
-    case 0x0E: { // ASL absolute
-      aslOp(getByte(readWord())); incT(6); break;
+    case 0x06: { // ASL zero page
+      aslOp(getZeroPage()); incT(5); break;
     }
     case 0x16: { // ASL zero page,X
-      aslOp(getByte(readByte() + X())); incT(6); break;
+      aslOp(getZeroPageX()); incT(6); break;
+    }
+    case 0x0E: { // ASL absolute
+      aslOp(getAbsolute()); incT(6); break;
     }
     case 0x1E: { // ASL absolute,X
-      aslOp(getByte(readWord() + X())); incT(7); break;
+      aslOp(getAbsoluteX()); incT(7); break;
     }
 
     //-
 
-    case 0x26: { // ROL zero page
-      rolOp(getByte(readByte())); incT(5); break;
-    }
     case 0x2A: { // ROL A
-      rolOp(readByte()); incT(2); break;
+      rolOp(A()); incT(2); break;
     }
-    case 0x2E: { // ROL absolute
-      rolOp(getByte(readWord())); incT(6); break;
+    case 0x26: { // ROL zero page
+      rolOp(getZeroPage()); incT(5); break;
     }
     case 0x36: { // ROL zero page,X
-      rolOp(getByte(readByte() + X())); incT(6); break;
+      rolOp(getZeroPageX()); incT(6); break;
+    }
+    case 0x2E: { // ROL absolute
+      rolOp(getAbsolute()); incT(6); break;
     }
     case 0x3E: { // ROL absolute,X
-      rolOp(getByte(readWord() + X())); incT(7); break;
+      rolOp(getAbsoluteX()); incT(7); break;
     }
 
     //-
 
-    case 0x46: { // LSR zero page
-      lsrOp(getByte(readByte())); incT(5); break;
-    }
     case 0x4A: { // LSR A
-      lsrOp(readByte()); incT(2); break;
+      lsrOp(A()); incT(2); break;
     }
-    case 0x4E: { // LSR absolute
-      lsrOp(getByte(readWord())); incT(6); break;
+    case 0x46: { // LSR zero page
+      lsrOp(getZeroPage()); incT(5); break;
     }
     case 0x56: { // LSR zero page,X
-      lsrOp(getByte(readByte() + X())); incT(6); break;
+      lsrOp(getZeroPageX()); incT(6); break;
+    }
+    case 0x4E: { // LSR absolute
+      lsrOp(getAbsolute()); incT(6); break;
     }
     case 0x5E: { // LSR absolute,X
-      lsrOp(getByte(readWord() + X())); incT(7); break;
+      lsrOp(getAbsoluteX()); incT(7); break;
     }
 
     //-
 
-    case 0x66: { // ROR zero page
-      rorOp(getByte(readByte())); incT(5); break;
-    }
     case 0x6A: { // ROR A
-      rorOp(readByte()); incT(2); break;
+      rorOp(A()); incT(2); break;
     }
-    case 0x6E: { // ROR absolute
-      rorOp(getByte(readWord())); incT(6); break;
+    case 0x66: { // ROR zero page
+      rorOp(getZeroPage()); incT(5); break;
     }
     case 0x76: { // ROR zero page,X
-      rorOp(getByte(readByte() + X())); incT(6); break;
+      rorOp(getZeroPageX()); incT(6); break;
+    }
+    case 0x6E: { // ROR absolute
+      rorOp(getAbsolute()); incT(6); break;
     }
     case 0x7E: { // ROR absolute,X
-      rorOp(getByte(readWord() + X())); incT(7); break;
+      rorOp(getAbsoluteX()); incT(7); break;
     }
 
     //-
 
     // BIT...
     case 0x24: { // BIT zero page
-      auto c1 = getByte(readByte()) & 0xC0; setSR(SR() & c1); incT(3); break;
+      auto c1 = getZeroPage() & 0xC0; setSR(SR() & c1); incT(3); break;
     }
     case 0x2C: { // BIT absolute
-      auto c1 = getByte(readWord()) & 0xC0; setSR(SR() & c1); incT(4); break;
+      auto c1 = getAbsolute() & 0xC0; setSR(SR() & c1); incT(4); break;
     }
 
     //---
@@ -454,6 +449,20 @@ step()
       setPC(readWord());
 
       incT(6);
+
+      if (isEnableOutputProcs() && PC() == outAAddr_) {
+        std::cout << "A = "; outputHex02(std::cout, A());
+
+        std::cout << " (";
+        if (Nflag()) std::cout << "N";
+        if (Zflag()) std::cout << "Z";
+        if (Cflag()) std::cout << "C";
+        std::cout << ")\n";
+
+        setPC(oldPC + 2);
+
+        break;
+      }
 
       if (isJumpPoint(PC()))
         jumpPointHit(c);
@@ -623,47 +632,47 @@ step()
       uchar c1 = readByte();          cpyOp(c1); incT(2); break;
     }
     case 0xC4: { // CPY zero page
-      uchar c1 = getByte(readByte()); cpyOp(c1); incT(3); break;
+      uchar c1 = getZeroPage(); cpyOp(c1); incT(3); break;
     }
     case 0xCC: { // CPY absolute
-      uchar c1 = getByte(readWord()); cpyOp(c1); incT(4); break;
+      uchar c1 = getAbsolute(); cpyOp(c1); incT(4); break;
     }
 
     // CPX ...
     case 0xE0: { // CPX immediate
-      uchar c1 = readByte();          cpxOp(c1); incT(2); break;
+      uchar c1 = readByte(); cpxOp(c1); incT(2); break;
     }
     case 0xE4: { // CPX zero page
-      uchar c1 = getByte(readByte()); cpxOp(c1); incT(3); break;
+      uchar c1 = getZeroPage(); cpxOp(c1); incT(3); break;
     }
     case 0xEC: { // CPX absolute
-      uchar c1 = getByte(readWord()); cpxOp(c1); incT(4); break;
+      uchar c1 = getAbsolute(); cpxOp(c1); incT(4); break;
     }
 
     // CMP ...
     case 0xC1: { // CMP (indirect,X)
-      uchar c1 = memIndexedIndirectX(readByte()); cmpOp(c1); incT(5); break;
+      uchar c1 = getMemIndexedIndirectX(); cmpOp(c1); incT(5); break;
     }
     case 0xC5: { // CMP zero page
-      uchar c1 = getByte(readByte());             cmpOp(c1); incT(3); break;
+      uchar c1 = getZeroPage(); cmpOp(c1); incT(3); break;
     }
     case 0xC9: { // CMP immediate
-      uchar c1 = readByte();                      cmpOp(c1); incT(2); break;
+      uchar c1 = readByte(); cmpOp(c1); incT(2); break;
     }
     case 0xCD: { // CMP absolute
-      uchar c1 = getByte(readWord());             cmpOp(c1); incT(4); break;
+      uchar c1 = getAbsolute(); cmpOp(c1); incT(4); break;
     }
     case 0xD1: { // CMP (indirect),Y
-      uchar c1 = memIndirectIndexedY(readByte()); cmpOp(c1); incT(5); break;
+      uchar c1 = getMemIndirectIndexedY(); cmpOp(c1); incT(5); break;
     }
     case 0xD5: { // CMP zero page,X
-      uchar c1 = getByte(readByte() + X());       cmpOp(c1); incT(4); break;
+      uchar c1 = getZeroPageX(); cmpOp(c1); incT(4); break;
     }
     case 0xD9: { // CMP absolute,Y
-      uchar c1 = getByte(readWord() + Y());       cmpOp(c1); incT(4); break;
+      uchar c1 = getAbsoluteY(); cmpOp(c1); incT(4); break;
     }
     case 0xDD: { // CMP absolute,X
-      uchar c1 = getByte(readWord() + X());       cmpOp(c1); incT(4); break;
+      uchar c1 = getAbsoluteX(); cmpOp(c1); incT(4); break;
     }
 
     //---
@@ -770,16 +779,16 @@ step()
       setY(readByte()); setNZFlags(Y()); incT(3); break;
     }
     case 0xA4: { // LDY zero page
-      setY(getByte(readByte())); setNZFlags(Y()); incT(3); break;
+      setY(getZeroPage()); setNZFlags(Y()); incT(3); break;
     }
     case 0xAC: { // LDY absolute
-      setY(getByte(readWord())); setNZFlags(Y()); incT(4); break;
+      setY(getAbsolute()); setNZFlags(Y()); incT(4); break;
     }
     case 0xB4: { // LDY zero page,X
-      setY(getByte(readByte() + X())); setNZFlags(Y()); incT(4); break;
+      setY(getZeroPageX()); setNZFlags(Y()); incT(4); break;
     }
     case 0xBC: { // LDY absolute,X
-      setY(getByte(readWord() + X())); setNZFlags(Y()); incT(4); break;
+      setY(getAbsoluteX()); setNZFlags(Y()); incT(4); break;
     }
 
     // LDX...
@@ -787,42 +796,42 @@ step()
       setX(readByte()); setNZFlags(X()); incT(3); break;
     }
     case 0xA6: { // LDX zero page
-      setX(getByte(readByte())); setNZFlags(X()); incT(3); break;
+      setX(getZeroPage()); setNZFlags(X()); incT(3); break;
     }
     case 0xAE: { // LDX absolute
-      setX(getByte(readWord())); setNZFlags(X()); incT(4); break;
+      setX(getAbsolute()); setNZFlags(X()); incT(4); break;
     }
     case 0xB6: { // LDX zero page,Y
-      setX(getByte(readByte() + Y())); setNZFlags(X()); incT(4); break;
+      setX(getZeroPageY()); setNZFlags(X()); incT(4); break;
     }
     case 0xBE: { // LDX absolute,Y
-      setX(getByte(readWord() + Y())); setNZFlags(X()); incT(4); break;
+      setX(getAbsoluteY()); setNZFlags(X()); incT(4); break;
     }
 
     // LDA...
     case 0xA1: { // LDA (indirect,X)
-      setA(memIndexedIndirectX(readByte())); setNZFlags(A()); incT(6); break;
+      setA(getMemIndexedIndirectX()); setNZFlags(A()); incT(6); break;
     }
     case 0xA5: { // LDA zero page
-      setA(getByte(readByte())); setNZFlags(A()); incT(3); break;
+      setA(getZeroPage()); setNZFlags(A()); incT(3); break;
     }
     case 0xA9: { // LDA immediate
       setA(readByte()); setNZFlags(A()); incT(2); break;
     }
     case 0xAD: { // LDA absolute
-      setA(getByte(readWord())); setNZFlags(A()); incT(4); break;
+      setA(getAbsolute()); setNZFlags(A()); incT(4); break;
     }
     case 0xB1: { // LDA (indirect),Y
-      setA(memIndirectIndexedY(readByte())); setNZFlags(A()); incT(5); break;
+      setA(getMemIndirectIndexedY()); setNZFlags(A()); incT(5); break;
     }
     case 0xB5: { // LDA zero page,X
-      setA(getByte(readByte() + X())); setNZFlags(A()); incT(4); break;
+      setA(getZeroPageX()); setNZFlags(A()); incT(4); break;
     }
     case 0xB9: { // LDA absolute,Y
-      setA(getByte(readWord() + Y())); setNZFlags(A()); incT(4); break;
+      setA(getAbsoluteY()); setNZFlags(A()); incT(4); break;
     }
     case 0xBD: { // LDA absolute,X
-      setA(getByte(readWord() + X())); setNZFlags(A()); incT(4); break;
+      setA(getAbsoluteX()); setNZFlags(A()); incT(4); break;
     }
 
     //---
@@ -921,7 +930,7 @@ step()
                         case 0xEB:                    case 0xEF:
               case 0xF2:case 0xF3:case 0xF4:case 0xF7:
               case 0xFA:case 0xFB:case 0xFC:          case 0xFF: {
-      std::cerr << "Invalid byte "; hex02(std::cerr, c); std::cerr << "\n";
+      std::cerr << "Invalid byte "; outputHex02(std::cerr, c); std::cerr << "\n";
       break;
     }
 
@@ -1119,6 +1128,26 @@ assembleLine(ushort &addr, const std::string &line)
 
     //---
 
+    if (opName == "OUT") {
+      std::string arg;
+
+      if (! readWord(arg)) {
+        std::cerr << "Invalid OUT '" << line << "'\n";
+        return false;
+      }
+
+      if (isEnableOutputProcs()) {
+        addByte(addr, 0x20     ); // JSR
+        addWord(addr, outAAddr_); // OUT
+      }
+      else {
+        std::cerr << "OUT not enabled\n";
+        return false;
+      }
+
+      break;
+    }
+
     // handle op
 
     if (isDebug())
@@ -1275,10 +1304,6 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
       if      (mode == ArgMode::MEMORY) {
         if (vlen <= 2) { return addOpByte(0x16, value); } // zero page
         else           { return addOpWord(0x1E, value); }
-      }
-      // ASL ($xx,X)
-      else if (mode == ArgMode::MEMORY_CONTENTS) {
-        return addOpWord(0x21, value);
       }
     }
 
@@ -1579,7 +1604,7 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
   else if (opName == "LSR") {
     if      (xyMode == XYMode::NONE) {
       // LSR #$xx (immediate)
-      if      (mode == ArgMode::A || mode == ArgMode::NONE) {
+      if      (mode == ArgMode::A) {
         return addOp(0x4A);
       }
       // LSR $xx (absolute or zero page)
@@ -1643,6 +1668,52 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
   else if (opName == "PHP") { return addOp(0x08); }
   else if (opName == "PLA") { return addOp(0x68); }
   else if (opName == "PLP") { return addOp(0x28); }
+
+  else if (opName == "ROL") {
+    if      (xyMode == XYMode::NONE) {
+      // ROL #$xx (immediate)
+      if      (mode == ArgMode::A) {
+        return addOp(0x2A);
+      }
+      // ROL $xx (absolute or zero page)
+      else if (mode == ArgMode::MEMORY) {
+        if (vlen <= 2) { return addOpByte(0x26, value); } // zero page
+        else           { return addOpWord(0x2E, value); }
+      }
+    }
+    else if (xyMode == XYMode::X) {
+      // ROL $xx,X (absolute or zero page)
+      if      (mode == ArgMode::MEMORY) {
+        if (vlen <= 2) { return addOpByte(0x36, value); } // zero page
+        else           { return addOpWord(0x3E, value); }
+      }
+    }
+
+    return false;
+  }
+
+  else if (opName == "ROR") {
+    if      (xyMode == XYMode::NONE) {
+      // ROR #$xx (immediate)
+      if      (mode == ArgMode::A) {
+        return addOp(0x6A);
+      }
+      // ROR $xx (absolute or zero page)
+      else if (mode == ArgMode::MEMORY) {
+        if (vlen <= 2) { return addOpByte(0x66, value); } // zero page
+        else           { return addOpWord(0x6E, value); }
+      }
+    }
+    else if (xyMode == XYMode::X) {
+      // ROR $xx,X (absolute or zero page)
+      if      (mode == ArgMode::MEMORY) {
+        if (vlen <= 2) { return addOpByte(0x76, value); } // zero page
+        else           { return addOpWord(0x7E, value); }
+      }
+    }
+
+    return false;
+  }
 
   else if (opName == "RTI") { return addOp(0x40); }
   else if (opName == "RTS") { return addOp(0x60); }
@@ -2025,14 +2096,10 @@ bool
 C6502::
 disassemble(ushort addr, std::ostream &os) const
 {
-  auto hex04 = [&](ushort value) {
-    os << std::setfill('0') << std::setw(4) << std::right << std::hex << int(value);
-  };
-
   ushort addr1 = addr;
 
   while (true) {
-    hex04(addr1); os << " ";
+    outputHex04(os, addr1); os << " ";
 
     if (! disassembleAddr(addr1, os))
       break;
@@ -2070,23 +2137,9 @@ bool
 C6502::
 disassembleAddr(ushort &addr, std::ostream &os) const
 {
-  auto hex02 = [&](uchar value) {
-    os << std::setfill('0') << std::setw(2) << std::right << std::hex << int(value);
-  };
-
-  auto shex02 = [&](schar value) {
-    if (value < 0) { os << "-"; value = -value; }
-
-    os << std::setfill('0') << std::setw(2) << std::right << std::hex << int(value);
-  };
-
-  auto hex04 = [&](ushort value) {
-    os << std::setfill('0') << std::setw(4) << std::right << std::hex << int(value);
-  };
-
-  auto outputByte  = [&]() { hex02(readByte(addr)); };
-  auto outputWord  = [&]() { hex04(ushort(readByte(addr) | (readByte(addr) << 8))); };
-//auto outputSByte = [&]() { shex02(readSByte(addr)); };
+  auto outputByte  = [&]() { outputHex02(os, readByte(addr)); };
+  auto outputWord  = [&]() { outputHex04(os, ushort(readByte(addr) | (readByte(addr) << 8))); };
+//auto outputSByte = [&]() { outputSHex02(os, readSByte(addr)); };
 
   auto outputAbsolute  = [&]() { os << "$"; outputWord(); };
   auto outputZeroPage  = [&]() { os << "$"; outputByte(); };
@@ -2097,7 +2150,8 @@ disassembleAddr(ushort &addr, std::ostream &os) const
   auto outputImmediate = [&]() { os << "#$"; outputByte(); };
 
   auto outputRelative  = [&]() {
-    schar c = readSByte(addr); os << "$"; shex02(c); os << " ; ($"; hex04(addr + c); os << ")";
+    schar c = readSByte(addr); os << "$"; outputSHex02(os, c);
+    os << " ; ($"; outputHex04(os, addr + c); os << ")";
   };
 
   auto outputIndirect  = [&]() { os << "("; outputAbsolute(); os << ")"; };
@@ -2391,7 +2445,7 @@ disassembleAddr(ushort &addr, std::ostream &os) const
                         case 0xEB:                    case 0xEF:
               case 0xF2:case 0xF3:case 0xF4:case 0xF7:
               case 0xFA:case 0xFB:case 0xFC:          case 0xFF: {
-      hex02(c); os << " (" << "???" << ")\n";
+      outputHex02(os, c); os << " (" << "???" << ")\n";
       break;
     }
 
@@ -2418,21 +2472,11 @@ void
 C6502::
 printState()
 {
-  auto hex02 = [&](std::ostream &os, uchar value) {
-    os << std::setfill('0') << std::setw(2) << std::right << std::hex << int(value);
-  };
-
-  auto hex04 = [&](std::ostream &os, ushort value) {
-    os << std::setfill('0') << std::setw(4) << std::right << std::hex << int(value);
-  };
-
-  //---
-
-  std::cout << "PC=$"; hex04(std::cout, PC()); std::cout << " ";
-  std::cout << "A=$";  hex02(std::cout, A ()); std::cout << " ";
-  std::cout << "X=$";  hex02(std::cout, X ()); std::cout << " ";
-  std::cout << "Y=$";  hex02(std::cout, Y ()); std::cout << " ";
-  std::cout << "SP=$"; hex02(std::cout, SP()); std::cout << " ";
+  std::cout << "PC=$"; outputHex04(std::cout, PC()); std::cout << " ";
+  std::cout << "A=$";  outputHex02(std::cout, A ()); std::cout << " ";
+  std::cout << "X=$";  outputHex02(std::cout, X ()); std::cout << " ";
+  std::cout << "Y=$";  outputHex02(std::cout, Y ()); std::cout << " ";
+  std::cout << "SP=$"; outputHex02(std::cout, SP()); std::cout << " ";
 
   std::cout << "Flags: ";
 
@@ -2463,25 +2507,15 @@ void
 C6502::
 printMemory(ushort addr, int len)
 {
-  auto hex02 = [&](std::ostream &os, uchar value) {
-    os << std::setfill('0') << std::setw(2) << std::right << std::hex << int(value);
-  };
-
-  auto hex04 = [&](std::ostream &os, ushort value) {
-    os << std::setfill('0') << std::setw(4) << std::right << std::hex << int(value);
-  };
-
-  //---
-
   int nl = (len + 15)/16;
 
   int i = 0;
 
   for (int il = 0; il < nl; ++il) {
-    hex04(std::cout, addr + i); std::cout << ":";
+    outputHex04(std::cout, addr + i); std::cout << ":";
 
     for (int i1 = 0; i1 < 16 && i < len; ++i1, ++i) {
-      std::cout << " "; hex02(std::cout, getByte(addr + i));
+      std::cout << " "; outputHex02(std::cout, getByte(addr + i));
     }
 
     std::cout << "\n";

@@ -5,6 +5,7 @@
 #include <set>
 #include <vector>
 #include <iostream>
+#include <iomanip>
 #include <cstring>
 #include <cassert>
 
@@ -40,6 +41,9 @@ class C6502 {
 
   const ushort &org() const { return org_; }
   void setOrg(const ushort &v) { org_ = v; }
+
+  bool isEnableOutputProcs() const { return enableOutputProcs_; }
+  void setEnableOutputProcs(bool b) { enableOutputProcs_ = b; }
 
   //------
 
@@ -116,7 +120,8 @@ class C6502 {
   inline void setNZCFlags(uchar c, bool C) { setNZFlags(c); setCFlag(C); }
 
   inline void setNZCVFlags(bool C, bool V) {
-    setSR(SR() | ((A() & 0x80) | (A() & 0x02) | C*0x01 | V*0x40)); }
+    setNZFlags(); setCFlag(C); setVFlag(V);
+  }
 
   //------
 
@@ -171,7 +176,15 @@ class C6502 {
 
   virtual void memChanged() { }
 
-  // ------
+  //---
+
+  void addByte(ushort &addr, uchar c) { setByte(addr++, c); };
+
+  void addWord(ushort &addr, ushort c) {
+    addByte(addr, c & 0x00FF); addByte(addr, (c & 0xFF00) >> 8);
+  }
+
+  //------
 
   virtual bool isReadOnly(ushort /*pos*/, ushort /*len*/) const { return false; }
   virtual bool isScreen  (ushort /*pos*/, ushort /*len*/) const { return false; }
@@ -197,27 +210,101 @@ class C6502 {
   inline void eorOp(uchar c) { setA(A() ^ c); setNZFlags(); }
 
   inline void adcOp(uchar c) {
-    ushort res = (Dflag() ? bcd_add(A(), c) : A() + c);
-    bool   C   = (Dflag() ? res > 0x99 : res > 0xFF);
-    bool   V   = (((A() & 0x80) | (c & 0x80)) != (res & 0x80));
+    ushort res { 0 };
+    bool   V   { false };
+    bool   C   { Cflag() };
+
+    if (Dflag()) {
+      res = bcdAdd(A(), c, C);
+      V   = (res & 0x80);
+    }
+    else {
+      res = A() + c + C;
+
+      C = res > 0xFF;
+      V = (((A() & 0x80) | (c & 0x80)) != (res & 0x80));
+    }
+
     setA(res); setNZCVFlags(C, V);
   }
 
   inline void sbcOp(uchar c) {
-    short res = (Dflag() ? bcd_sub(A(), c, Cflag()) : A() - c - Cflag());
-    bool  C   = (res < 0);
-    bool  V   = (((A() & 0x80) | (c & 0x80)) != (res & 0x80));
+    short res { 0 };
+    bool  V   { false };
+    bool  C   { Cflag() };
+
+    if (Dflag()) {
+      res = bcdSub(A(), c, 1 - C);
+      V   = (((A() & 0x80) | (c & 0x80)) != (res & 0x80));
+    }
+    else {
+      res = A() - c - Cflag();
+      C   = (res < 0);
+      V   = (((A() & 0x80) | (c & 0x80)) != (res & 0x80));
+    }
+
     setA(res); setNZCVFlags(C, V);
   }
 
-  inline ushort bcd_add(uchar a, uchar b) {
-    assert(false);
-    return a + b;
+  inline ushort bcdAdd(uchar a, uchar b, bool &c) {
+    uchar t1 = (a & 0xF0) >> 4; uchar u1 = (a & 0x0F);
+    uchar t2 = (b & 0xF0) >> 4; uchar u2 = (b & 0x0F);
+
+    uchar t = t1 + t2;
+    uchar u = u1 + u2 + c;
+
+    if (u >= 10) {
+      ++t; u -= 10;
+    }
+
+    c = false;
+
+    if (t >= 10) {
+      t -= 10;
+
+      c = true;
+    }
+
+    return (((t & 0x0F) << 4) | (u & 0x0F));
   }
 
-  inline short bcd_sub(uchar a, uchar b, bool c) {
-    assert(false);
-    return a - b - c;
+  inline short bcdSub(uchar a, uchar b, bool c) {
+    uchar t1 = (a & 0xF0) >> 4; uchar u1 = (a & 0x0F);
+    uchar t2 = (b & 0xF0) >> 4; uchar u2 = (b & 0x0F);
+
+   schar t, u;
+
+    if (a >= b + c) {
+      t = t1 - t2;
+      u = u1 - u2 - c;
+
+      if (u < 0) {
+        --t; u += 10;
+      }
+
+      assert(t >= 0);
+
+      c = true;
+    }
+    else {
+      t = t2 - t1;
+      u = u2 - u1;
+
+      if (u < 0) {
+        --t; u += 10;
+      }
+
+      assert(t >= 0);
+
+      t = 9 - t;
+
+      if (u > 0)
+        u = 10 - u;
+
+      c = true;
+    }
+
+    return (((t & 0x0F) << 4) | (u & 0x0F));
   }
 
   inline void cmpOp(uchar c) {
@@ -388,6 +475,34 @@ class C6502 {
   virtual void jumpPointHit(uchar /*inst*/) { }
 
  private:
+  // get byte from zero page using offset from next byte
+  inline uchar getZeroPage() { return getByte(readByte()); }
+
+  // get byte from zero page using offset from next byte and X register
+  inline uchar getZeroPageX() { return getByte(readByte() + X()); }
+
+  // get byte from zero page using offset from next byte and Y register
+  inline uchar getZeroPageY() { return getByte(readByte() + Y()); }
+
+  // get byte from read address
+  inline uchar getAbsolute() { return getByte(readWord()); }
+
+  // get byte from read address offset by X register
+  inline uchar getAbsoluteX() { return getByte(readWord() + X()); }
+
+  // get byte from read address offset by Y register
+  inline uchar getAbsoluteY() { return getByte(readWord() + Y()); }
+
+  // get byte from memory address at zero page address (from next byte plus X register)
+  inline uchar getMemIndexedIndirectX() { return memIndexedIndirectX(readByte()); }
+
+  // get byte from memory address at zero page address (from next byte) plus Y register
+  inline uchar getMemIndirectIndexedY() { return memIndirectIndexedY(readByte()); }
+
+  //---
+
+  // assemble
+
   enum class XYMode {
     NONE,
     X,
@@ -419,7 +534,27 @@ class C6502 {
   void setLabel(const std::string &name, ushort addr, uchar len);
   bool getLabel(const std::string &name, ushort &addr, uchar &len) const;
 
+  //---
+
+  // disassemble
+
   bool disassembleAddr(ushort &addr1, std::ostream &os) const;
+
+  //---
+
+  void outputHex02(std::ostream &os, uchar value) const {
+    os << std::setfill('0') << std::setw(2) << std::right << std::hex << int(value);
+  }
+
+  void outputHex04(std::ostream &os, ushort value) const {
+    os << std::setfill('0') << std::setw(4) << std::right << std::hex << int(value);
+  }
+
+  void outputSHex02(std::ostream &os, schar value) const {
+    if (value < 0) { os << "-"; value = -value; }
+
+    os << std::setfill('0') << std::setw(2) << std::right << std::hex << int(value);
+  }
 
  private:
   // registers
@@ -475,6 +610,14 @@ class C6502 {
   using JumpPoints = std::set<ushort>;
 
   JumpPoints jumpPoints_;
+
+  //---
+
+  // Debug Output
+
+  bool enableOutputProcs_ { false };
+
+  ushort outAAddr_ { 0x0004 };
 };
 
 #endif

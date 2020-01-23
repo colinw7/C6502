@@ -46,6 +46,7 @@ main(int argc, char **argv)
   bool assemble = false;
   int  org      = 0x0600;
   bool jump     = false;
+  bool debug    = false;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -77,6 +78,8 @@ main(int argc, char **argv)
   //---
 
   auto cpu = new C6502Test;
+
+  cpu->setDebug(debug);
 
   cpu->setOrg(org);
 

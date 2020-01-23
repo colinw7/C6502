@@ -3,7 +3,7 @@
 int
 main(int argc, char **argv)
 {
-  C6502 emu;
+  C6502 cpu;
 
   ushort org         = 0x0600;
   bool   assemble    = false;
@@ -50,10 +50,12 @@ main(int argc, char **argv)
   }
 
   if (debug)
-    emu.setDebug(true);
+    cpu.setDebug(true);
+
+  cpu.setEnableOutputProcs(true);
 
   if (c64) {
-    emu.load64Rom();
+    cpu.load64Rom();
   }
 
   if (assemble) {
@@ -62,26 +64,26 @@ main(int argc, char **argv)
     for (const auto &arg : args) {
       std::ifstream ifs(arg.c_str(), std::ios::in);
 
-      emu.assemble(org, ifs);
+      cpu.assemble(org, ifs);
     }
   }
 
   if (disassemble) {
     std::cerr << "--- Disassemble ---\n";
 
-    emu.disassemble(org);
+    cpu.disassemble(org);
   }
 
   if (run) {
     std::cerr << "--- Run ---\n";
 
-    emu.run(org);
+    cpu.run(org);
   }
 
   if (print) {
     std::cerr << "--- Print ---\n";
 
-    emu.print(org);
+    cpu.print(org);
   }
 
   exit(0);
