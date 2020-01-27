@@ -24,7 +24,7 @@
 
 CQ6502Dbg::
 CQ6502Dbg(C6502 *cpu) :
- C6502Trace(cpu), cpu_(cpu)
+ cpu_(cpu)
 {
   setObjectName("dbg");
 
@@ -54,7 +54,7 @@ init()
 
   updateBreakpoints();
 
-  regChanged(C6502::Reg::NONE);
+  updateRegisters();
 }
 
 void
@@ -114,7 +114,7 @@ setMemoryTrace(bool b)
   memoryTrace_ = b;
 
   if (memoryTrace_ && memoryDirty_) {
-    memChangedI(0, 65535);
+    memChanged(0, 65535);
   }
 }
 
@@ -344,13 +344,14 @@ addFlagsWidgets()
     return check;
   };
 
-  flagsWidgetData_.cCheck = addCheckLabel("C");
-  flagsWidgetData_.zCheck = addCheckLabel("Z");
-  flagsWidgetData_.iCheck = addCheckLabel("I");
-  flagsWidgetData_.dCheck = addCheckLabel("D");
-  flagsWidgetData_.bCheck = addCheckLabel("B");
-  flagsWidgetData_.vCheck = addCheckLabel("V");
   flagsWidgetData_.nCheck = addCheckLabel("N");
+  flagsWidgetData_.vCheck = addCheckLabel("V");
+  flagsWidgetData_.xCheck = addCheckLabel("-");
+  flagsWidgetData_.bCheck = addCheckLabel("B");
+  flagsWidgetData_.dCheck = addCheckLabel("D");
+  flagsWidgetData_.iCheck = addCheckLabel("I");
+  flagsWidgetData_.zCheck = addCheckLabel("Z");
+  flagsWidgetData_.cCheck = addCheckLabel("C");
 
   flagsWidgetData_.layout->setColumnStretch(col, 1);
   flagsWidgetData_.layout->setRowStretch   (  2, 1);
@@ -368,12 +369,12 @@ addRegistersWidgets()
     return edit;
   };
 
+  regWidgetData_.pcEdit = addRegEdit(C6502::Reg::PC);
   regWidgetData_.aEdit  = addRegEdit(C6502::Reg::A );
   regWidgetData_.xEdit  = addRegEdit(C6502::Reg::X );
   regWidgetData_.yEdit  = addRegEdit(C6502::Reg::Y );
   regWidgetData_.srEdit = addRegEdit(C6502::Reg::SR);
   regWidgetData_.spEdit = addRegEdit(C6502::Reg::SP);
-  regWidgetData_.pcEdit = addRegEdit(C6502::Reg::PC);
 
   regWidgetData_.layout->setColumnStretch(2  , 1);
   regWidgetData_.layout->setRowStretch   (row, 1);
@@ -463,15 +464,13 @@ void
 CQ6502Dbg::
 setMemoryText()
 {
+  cpu_->setDebugger(true);
+
   uint len = 65536;
 
   ushort numLines = len/memLineWidth();
 
   if ((len % memLineWidth()) != 0) ++numLines;
-
-  uint pos = cpu_->PC();
-
-  cpu_->setPC(0);
 
   std::string str;
 
@@ -485,7 +484,7 @@ setMemoryText()
     pos1 += memLineWidth();
   }
 
-  cpu_->setPC(pos);
+  cpu_->setDebugger(false);
 }
 
 void
@@ -581,136 +580,99 @@ updateBreakpoints()
 
 void
 CQ6502Dbg::
-postStepProc()
-{
-  processEvents();
-}
-
-void
-CQ6502Dbg::
 processEvents()
 {
-  while (qApp->hasPendingEvents())
-    qApp->processEvents();
+  //while (qApp->hasPendingEvents())
+  qApp->processEvents();
 }
 
 void
 CQ6502Dbg::
 updateRegisters()
 {
-  regChanged(C6502::Reg::NONE);
+  if (isRegistersTrace())
+    regWidgetData_.aEdit->setValue(cpu_->A());
 
-  processEvents();
-}
+  if (isFlagsTrace()) {
+    flagsWidgetData_.nCheck->setChecked(cpu_->Nflag());
+    flagsWidgetData_.vCheck->setChecked(cpu_->Vflag());
+    flagsWidgetData_.xCheck->setChecked(cpu_->Xflag());
+    flagsWidgetData_.bCheck->setChecked(cpu_->Bflag());
+    flagsWidgetData_.dCheck->setChecked(cpu_->Dflag());
+    flagsWidgetData_.iCheck->setChecked(cpu_->Iflag());
+    flagsWidgetData_.zCheck->setChecked(cpu_->Zflag());
+    flagsWidgetData_.cCheck->setChecked(cpu_->Cflag());
+  }
 
-void
-CQ6502Dbg::
-regChanged(C6502::Reg reg)
-{
-  if (reg == C6502::Reg::A || reg == C6502::Reg::NONE) {
-    if (isRegistersTrace())
-      regWidgetData_.aEdit->setValue(cpu_->A());
+  if (isRegistersTrace())
+    regWidgetData_.xEdit->setValue(cpu_->X());
 
-    if (isFlagsTrace()) {
-      flagsWidgetData_.cCheck->setChecked(cpu_->Cflag());
-      flagsWidgetData_.zCheck->setChecked(cpu_->Zflag());
-      flagsWidgetData_.iCheck->setChecked(cpu_->Iflag());
-      flagsWidgetData_.dCheck->setChecked(cpu_->Dflag());
-      flagsWidgetData_.bCheck->setChecked(cpu_->Bflag());
-      flagsWidgetData_.vCheck->setChecked(cpu_->Vflag());
-      flagsWidgetData_.nCheck->setChecked(cpu_->Nflag());
+  if (isRegistersTrace())
+    regWidgetData_.yEdit->setValue(cpu_->Y());
+
+  if (isRegistersTrace())
+    regWidgetData_.spEdit->setValue(cpu_->SP());
+
+  if (isStackTrace())
+    updateStack();
+
+  //---
+
+  uint pc = cpu_->PC();
+
+  if (isRegistersTrace())
+    regWidgetData_.pcEdit->setValue(pc);
+
+  if (isBreakpointsTrace())
+    breakpointsWidgetData_.edit->setText(CStrUtil::toHexString(pc, 4).c_str());
+
+  //----
+
+  int mem1 = memoryArea_->vbar()->value();
+  int mem2 = mem1 + 20;
+  int mem  = pc/memLineWidth();
+
+  if (isMemoryTrace()) {
+    if (mem < mem1 || mem > mem2) {
+      memoryArea_->vbar()->setValue(mem);
+    }
+    else {
+      memoryArea_->text()->update();
     }
   }
 
-  if (reg == C6502::Reg::X || reg == C6502::Reg::NONE) {
-    if (isRegistersTrace())
-      regWidgetData_.xEdit->setValue(cpu_->X());
-  }
+  //----
 
-  if (reg == C6502::Reg::Y || reg == C6502::Reg::NONE) {
-    if (isRegistersTrace())
-      regWidgetData_.yEdit->setValue(cpu_->Y());
-  }
+  if (isInstructionsTrace()) {
+    uint lineNum;
 
-  if (reg == C6502::Reg::SP || reg == C6502::Reg::NONE) {
-    if (isRegistersTrace())
-      regWidgetData_.spEdit->setValue(cpu_->SP());
+    if (! instructionsArea_->text()->getLineForPC(pc, lineNum))
+      updateInstructions();
 
-    if (isStackTrace())
-      updateStack();
-  }
-
-  if (reg == C6502::Reg::PC || reg == C6502::Reg::NONE) {
-    uint pc = cpu_->PC();
-
-    if (isRegistersTrace())
-      regWidgetData_.pcEdit->setValue(pc);
-
-    if (isBreakpointsTrace())
-      breakpointsWidgetData_.edit->setText(CStrUtil::toHexString(pc, 4).c_str());
+    if (instructionsArea_->text()->getLineForPC(pc, lineNum))
+      instructionsArea_->vbar()->setValue(lineNum);
 
     //----
 
-    int mem1 = memoryArea_->vbar()->value();
-    int mem2 = mem1 + 20;
-    int mem  = pc/memLineWidth();
+    // instruction at PC
+    int         alen;
+    std::string astr;
 
-    if (isMemoryTrace()) {
-      if (mem < mem1 || mem > mem2) {
-        memoryArea_->vbar()->setValue(mem);
-      }
-      else {
-        memoryArea_->text()->update();
-      }
-    }
+    cpu_->disassembleAddr(cpu_->PC(), astr, alen);
 
-    //----
-
-    if (isInstructionsTrace()) {
-      uint lineNum;
-
-      if (! instructionsArea_->text()->getLineForPC(pc, lineNum))
-        updateInstructions();
-
-      if (instructionsArea_->text()->getLineForPC(pc, lineNum))
-        instructionsArea_->vbar()->setValue(lineNum);
-
-      //----
-
-      // instruction at PC
-      int         alen;
-      std::string astr;
-
-      cpu_->disassembleAddr(cpu_->PC(), astr, alen);
-
-      opData_->setText(astr.c_str());
-    }
+    opData_->setText(astr.c_str());
   }
 
-  if (reg == C6502::Reg::SR || reg == C6502::Reg::NONE) {
-    if (isRegistersTrace())
-      regWidgetData_.srEdit->setValue(cpu_->SR());
-  }
+  if (isRegistersTrace())
+    regWidgetData_.srEdit->setValue(cpu_->SR());
 }
 
 void
 CQ6502Dbg::
 memChanged(ushort pos, ushort len)
 {
-  if (! isMemoryTrace()) {
-    memoryDirty_ = true;
-    return;
-  }
+  cpu_->setDebugger(true);
 
-  //if (! debug_) return;
-
-  memChangedI(pos, len);
-}
-
-void
-CQ6502Dbg::
-memChangedI(ushort pos, ushort len)
-{
   ushort pos1 = pos;
   ushort pos2 = pos + len;
 
@@ -723,6 +685,15 @@ memChangedI(ushort pos, ushort len)
   memoryArea_->text()->update();
 
   memoryDirty_ = false;
+
+  cpu_->setDebugger(false);
+}
+
+void
+CQ6502Dbg::
+breakpointsChangedSlot()
+{
+  breakpointsChanged();
 }
 
 void
@@ -733,6 +704,7 @@ breakpointsChanged()
     updateBreakpoints();
 }
 
+#if 0
 void
 CQ6502Dbg::
 traceBackChanged()
@@ -740,6 +712,7 @@ traceBackChanged()
   if (isTraceBackTrace())
     updateTraceBack();
 }
+#endif
 
 //---
 
@@ -758,19 +731,6 @@ paintEvent(QPaintEvent *e)
 }
 
 //---
-
-void
-CQ6502Dbg::
-setStop(bool)
-{
-}
-
-void
-CQ6502Dbg::
-setHalt(bool b)
-{
-  haltCheck_->setChecked(b);
-}
 
 void
 CQ6502Dbg::
@@ -989,9 +949,9 @@ void
 CQ6502Dbg::
 updateAll()
 {
-  regChanged(C6502::Reg::NONE);
+  updateRegisters();
 
-  memChangedI(0, 65535);
+  memChanged(0, 65535);
 
   update();
 }

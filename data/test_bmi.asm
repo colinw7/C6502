@@ -1,0 +1,6 @@
+  LDA #$37
+  BMI LABEL
+  OUT A
+ LABEL:
+  LDA #$FF
+  OUT A

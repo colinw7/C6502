@@ -1,7 +1,6 @@
 #ifndef CQ6502_DBG_H
 #define CQ6502_DBG_H
 
-#include <C6502Trace.h>
 #include <C6502.h>
 #include <QFrame>
 
@@ -30,7 +29,7 @@ class QGridLayout;
 
 //------
 
-class CQ6502Dbg : public QFrame, public C6502Trace {
+class CQ6502Dbg : public QFrame {
   Q_OBJECT
 
   Q_PROPERTY(QFont  fixedFont         READ getFixedFont        WRITE setFixedFont)
@@ -59,8 +58,6 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
 
   C6502 *getCPU() const { return cpu_; }
   void setCPU(C6502 *cpu) { cpu_ = cpu; }
-
-  void regChanged(C6502::Reg reg) override;
 
   const QFont &getFixedFont() const { return fixedFont_; }
   void setFixedFont(const QFont &font);
@@ -112,6 +109,8 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
 
   //---
 
+  void updateRegisters();
+
   void updateBreakpoints();
 
   //---
@@ -138,8 +137,6 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
 
   std::string getByteChar(uchar c);
 
-  void updateRegisters();
-
   void updateInstructions();
 
   void updateStack();
@@ -149,20 +146,13 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   //----
 
  protected:
-  void postStepProc() override;
-
   void processEvents();
 
-  void memChanged(ushort pos, ushort len) override;
+  void memChanged(ushort pos, ushort len);
 
-  void memChangedI(ushort pos, ushort len);
+//void traceBackChanged() override;
 
-  void traceBackChanged() override;
-
-  void breakpointsChanged() override;
-
-  void setStop(bool b) override;
-  void setHalt(bool b) override;
+  void breakpointsChanged();
 
   void updateAll();
 
@@ -170,6 +160,8 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   void forceHalt();
 
   void updateSlot();
+
+  void breakpointsChangedSlot();
 
  protected slots:
   void addBreakpointSlot();
@@ -246,13 +238,14 @@ class CQ6502Dbg : public QFrame, public C6502Trace {
   struct FlagsWidgetData {
     QGroupBox   *group  { nullptr };
     QGridLayout *layout { nullptr };
-    QCheckBox   *cCheck { nullptr };
-    QCheckBox   *zCheck { nullptr };
-    QCheckBox   *iCheck { nullptr };
-    QCheckBox   *dCheck { nullptr };
-    QCheckBox   *bCheck { nullptr };
-    QCheckBox   *vCheck { nullptr };
     QCheckBox   *nCheck { nullptr };
+    QCheckBox   *vCheck { nullptr };
+    QCheckBox   *xCheck { nullptr };
+    QCheckBox   *bCheck { nullptr };
+    QCheckBox   *dCheck { nullptr };
+    QCheckBox   *iCheck { nullptr };
+    QCheckBox   *zCheck { nullptr };
+    QCheckBox   *cCheck { nullptr };
   };
 
   FlagsWidgetData flagsWidgetData_;

@@ -1,0 +1,6 @@
+  LDA #$37
+  BVC LABEL
+  OUT A
+ LABEL:
+  LDA #$FF
+  OUT A

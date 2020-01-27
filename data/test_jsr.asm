@@ -1,0 +1,10 @@
+  LDA #$37
+  JSR LABEL
+  LDA #$FF
+  OUT A
+
+  BRK
+
+ LABEL:
+  OUT A
+  RTS

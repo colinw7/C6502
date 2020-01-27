@@ -1,0 +1,6 @@
+  LDA #$37
+  BEQ LABEL
+  OUT A
+ LABEL:
+  LDA #$FF
+  OUT A

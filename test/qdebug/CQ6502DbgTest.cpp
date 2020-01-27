@@ -41,34 +41,45 @@ main(int argc, char **argv)
 
   std::string filename;
 
-  bool binary   = false;
-  bool test     = false;
-  bool assemble = false;
-  int  org      = 0x0600;
-  bool jump     = false;
-  bool debug    = false;
+  bool   binary   = false;
+  bool   test     = false;
+  bool   assemble = false;
+  ushort aorg     = 0x0000; // assemble org
+  ushort org      = 0x0000; // disassemble, run, print org
+  bool   jump     = false;
+  bool   debug    = false;
+  bool   outproc  = false;
 
   for (int i = 1; i < argc; ++i) {
-    std::string arg = argv[i];
+    if (argv[i][0] == '-') {
+      std::string arg = argv[i];
 
-    if      (arg == "-bin") {
-      binary = true;
-    }
-    else if (arg == "-org") {
-      ++i;
-
-      if (i < argc) {
-        org = atoi(argv[i]);
+      if      (arg == "-bin") {
+        binary = true;
       }
-    }
-    else if (arg == "-jump") {
-      jump = true;
-    }
-    else if (arg == "-test") {
-      test = true;
-    }
-    else if (arg == "-a" || arg == "-assemble") {
-      assemble = true;
+      else if (arg == "-org") {
+        ++i;
+
+        if (i < argc) {
+          org = atoi(argv[i]);
+        }
+      }
+      else if (arg == "-jump") {
+        jump = true;
+      }
+      else if (arg == "-test") {
+        test = true;
+      }
+      else if (arg == "-a" || arg == "-assemble") {
+        assemble = true;
+      }
+      else if (arg == "-outproc") {
+        outproc = true;
+      }
+      else {
+        std::cerr << "Invalid arg '" << arg << "'\n";
+        exit(1);
+      }
     }
     else {
       filename = argv[i];
@@ -80,6 +91,8 @@ main(int argc, char **argv)
   auto cpu = new C6502Test;
 
   cpu->setDebug(debug);
+
+  cpu->setEnableOutputProcs(outproc);
 
   cpu->setOrg(org);
 
@@ -107,7 +120,9 @@ main(int argc, char **argv)
   if (assemble) {
     std::ifstream ifs(filename.c_str(), std::ios::in);
 
-    cpu->assemble(org, ifs);
+    ushort len;
+
+    cpu->assemble(aorg, ifs, len);
 
     cpu->setPC(org);
   }

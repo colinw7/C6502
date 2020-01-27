@@ -1,0 +1,6 @@
+  LDA #$37
+  BCS LABEL
+  OUT A
+ LABEL:
+  LDA #$FF
+  OUT A

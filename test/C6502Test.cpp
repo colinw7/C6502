@@ -5,7 +5,9 @@ main(int argc, char **argv)
 {
   C6502 cpu;
 
-  ushort org         = 0x0600;
+  ushort aorg        = 0x0000; // assemble org
+  ushort org         = 0x0000; // disassemble, run, print org
+  ushort len         = 0x0100;
   bool   assemble    = false;
   bool   disassemble = false;
   bool   run         = false;
@@ -19,21 +21,30 @@ main(int argc, char **argv)
 
   for (int i = 1; i < argc; ++i) {
     if (argv[i][0] == '-') {
-      if      (argv[i][1] == 'a')
+      std::string arg = &argv[i][1];
+
+      if      (arg == "a" || arg == "assemble")
         assemble = true;
-      else if (argv[i][1] == 'd')
+      else if (arg == "d")
         disassemble = true;
-      else if (argv[i][1] == 'r')
+      else if (arg == "r")
         run = true;
-      else if (argv[i][1] == 'p')
+      else if (arg == "p")
         print = true;
-      else if (argv[i][1] == 'D')
+      else if (arg == "D")
         debug = true;
-      else if (argv[i][1] == 'o') {
+      else if (arg == "o" || arg == "org") {
         ++i;
 
         if (i < argc) {
           org = atoi(argv[i]);
+        }
+      }
+      else if (arg == "l" || arg == "len") {
+        ++i;
+
+        if (i < argc) {
+          len = atoi(argv[i]);
         }
       }
       else if (strcmp(&argv[i][1], "c64") == 0) {
@@ -64,7 +75,7 @@ main(int argc, char **argv)
     for (const auto &arg : args) {
       std::ifstream ifs(arg.c_str(), std::ios::in);
 
-      cpu.assemble(org, ifs);
+      cpu.assemble(aorg, ifs, len);
     }
   }
 
@@ -83,7 +94,7 @@ main(int argc, char **argv)
   if (print) {
     std::cerr << "--- Print ---\n";
 
-    cpu.print(org);
+    cpu.print(org, len);
   }
 
   exit(0);

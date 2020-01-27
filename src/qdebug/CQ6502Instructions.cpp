@@ -287,6 +287,10 @@ reload()
 {
   auto cpu = dbg_->getCPU();
 
+  cpu->setDebugger(true);
+
+  //---
+
   uint pos1 = 0;
   uint pos2 = 65536;
 
@@ -359,6 +363,10 @@ reload()
   vbar_->setValue(0);
 
   update();
+
+  //---
+
+  cpu->setDebugger(false);
 }
 
 QSize

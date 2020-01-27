@@ -1,10 +1,12 @@
 #include <C6502.h>
+#include <CParser.h>
+
 #include <algorithm>
 #include <iostream>
 #include <cassert>
 
-#include <c64_basic.h>
-#include <c64_kernel.h>
+//#include <c64_basic.h>
+//#include <c64_kernel.h>
 
 // TODO:
 
@@ -24,6 +26,8 @@ C6502::
 C6502()
 {
   setIFlag(true); // interrupts disabled
+
+  std::memset(&mem_[0], 0, 0x10000*sizeof(mem_[0]));
 }
 
 //---
@@ -104,6 +108,7 @@ resetBRK()
 
 //---
 
+#if 0
 void
 C6502::
 load64Rom()
@@ -111,6 +116,7 @@ load64Rom()
   memset(0xA000, c64_basic_data , 0x2000);
   memset(0xE000, c64_kernel_data, 0x2000);
 }
+#endif
 
 //---
 
@@ -322,83 +328,83 @@ step()
     // Bit functions
 
     case 0x0A: { // ASL A
-      aslOp(A()); incT(2); break;
+      aslAOp(); incT(2); break;
     }
     case 0x06: { // ASL zero page
-      aslOp(getZeroPage()); incT(5); break;
+      aslMemOp(readByte()); incT(5); break;
     }
     case 0x16: { // ASL zero page,X
-      aslOp(getZeroPageX()); incT(6); break;
+      aslMemOp(sumBytes(readByte(), X())); incT(6); break;
     }
     case 0x0E: { // ASL absolute
-      aslOp(getAbsolute()); incT(6); break;
+      aslMemOp(readWord()); incT(6); break;
     }
     case 0x1E: { // ASL absolute,X
-      aslOp(getAbsoluteX()); incT(7); break;
+      aslMemOp(readWord() + X()); incT(7); break;
     }
 
     //-
 
     case 0x2A: { // ROL A
-      rolOp(A()); incT(2); break;
+      rolAOp(); incT(2); break;
     }
     case 0x26: { // ROL zero page
-      rolOp(getZeroPage()); incT(5); break;
+      rolMemOp(readByte()); incT(5); break;
     }
     case 0x36: { // ROL zero page,X
-      rolOp(getZeroPageX()); incT(6); break;
+      rolMemOp(sumBytes(readByte(), X())); incT(6); break;
     }
     case 0x2E: { // ROL absolute
-      rolOp(getAbsolute()); incT(6); break;
+      rolMemOp(readWord()); incT(6); break;
     }
     case 0x3E: { // ROL absolute,X
-      rolOp(getAbsoluteX()); incT(7); break;
+      rolMemOp(readWord() + X()); incT(7); break;
     }
 
     //-
 
     case 0x4A: { // LSR A
-      lsrOp(A()); incT(2); break;
+      lsrAOp(); incT(2); break;
     }
     case 0x46: { // LSR zero page
-      lsrOp(getZeroPage()); incT(5); break;
+      lsrMemOp(readByte()); incT(5); break;
     }
     case 0x56: { // LSR zero page,X
-      lsrOp(getZeroPageX()); incT(6); break;
+      lsrMemOp(sumBytes(readByte(), X())); incT(6); break;
     }
     case 0x4E: { // LSR absolute
-      lsrOp(getAbsolute()); incT(6); break;
+      lsrMemOp(readWord()); incT(6); break;
     }
     case 0x5E: { // LSR absolute,X
-      lsrOp(getAbsoluteX()); incT(7); break;
+      lsrMemOp(readWord() + X()); incT(7); break;
     }
 
     //-
 
     case 0x6A: { // ROR A
-      rorOp(A()); incT(2); break;
+      rorAOp(); incT(2); break;
     }
     case 0x66: { // ROR zero page
-      rorOp(getZeroPage()); incT(5); break;
+      rorMemOp(readByte()); incT(5); break;
     }
     case 0x76: { // ROR zero page,X
-      rorOp(getZeroPageX()); incT(6); break;
+      rorMemOp(sumBytes(readByte(), X())); incT(6); break;
     }
     case 0x6E: { // ROR absolute
-      rorOp(getAbsolute()); incT(6); break;
+      rorMemOp(readWord()); incT(6); break;
     }
     case 0x7E: { // ROR absolute,X
-      rorOp(getAbsoluteX()); incT(7); break;
+      rorMemOp(readWord() + X()); incT(7); break;
     }
 
     //-
 
     // BIT...
     case 0x24: { // BIT zero page
-      auto c1 = getZeroPage() & 0xC0; setSR(SR() & c1); incT(3); break;
+      bitOp(getZeroPage()); incT(3); break;
     }
     case 0x2C: { // BIT absolute
-      auto c1 = getAbsolute() & 0xC0; setSR(SR() & c1); incT(4); break;
+      bitOp(getAbsolute()); incT(4); break;
     }
 
     //---
@@ -450,18 +456,79 @@ step()
 
       incT(6);
 
-      if (isEnableOutputProcs() && PC() == outAAddr_) {
-        std::cout << "A = "; outputHex02(std::cout, A());
+      if (isEnableOutputProcs()) {
+        if      (PC() == outAddr_ || PC() == outNAddr_) {
+          bool nl = (PC() == outAddr_);
 
-        std::cout << " (";
-        if (Nflag()) std::cout << "N";
-        if (Zflag()) std::cout << "Z";
-        if (Cflag()) std::cout << "C";
-        std::cout << ")\n";
+          uchar c1 = getByte(oldPC + 3);
 
-        setPC(oldPC + 2);
+          if (c1 & 0x01) { std::cout << " A=" ; outputHex02(std::cout, A()); }
+          if (c1 & 0x02) { std::cout << " X=" ; outputHex02(std::cout, X()); }
+          if (c1 & 0x04) { std::cout << " Y=" ; outputHex02(std::cout, Y()); }
+          if (c1 & 0x08) { std::cout << " SP="; outputHex02(std::cout, SP()); }
+          if (c1 & 0x10) { std::cout << " PC="; outputHex04(std::cout, PC()); }
 
-        break;
+          if (c1 & 0x80) {
+            std::cout << " SR=";
+            std::cout << (Nflag() ? "N" : "-");
+            std::cout << (Vflag() ? "V" : "-");
+            std::cout << (Xflag() ? "X" : "-");
+            std::cout << (Bflag() ? "B" : "-");
+            std::cout << (Dflag() ? "D" : "-");
+            std::cout << (Iflag() ? "I" : "-");
+            std::cout << (Zflag() ? "Z" : "-");
+            std::cout << (Cflag() ? "C" : "-");
+          }
+
+          if (nl)
+            std::cout << "\n";
+
+          (void) popWord();
+
+          setPC(oldPC + 4);
+
+          break;
+        }
+        else if (PC() == outMemAddr_ || PC() == outMemNAddr_) {
+          bool nl = (PC() == outMemAddr_);
+
+          ushort addr1 = getWord(oldPC + 3);
+
+          uchar c1 = getByte(addr1);
+
+          outputHex02(std::cout, c1);
+
+          if (nl)
+            std::cout << "\n";
+
+          (void) popWord();
+
+          setPC(oldPC + 5);
+
+          break;
+        }
+        else if (PC() == outStrAddr_) {
+          ushort addr1 = getWord(oldPC + 3);
+
+          uchar c1 = getByte(addr1);
+
+          while (c1) {
+            char c2 = char(c1);
+
+            if (isspace(c2) || isprint(c2))
+              std::cout << c2;
+            else
+              std::cout << '.';
+
+            c1 = getByte(++addr1);
+          }
+
+          (void) popWord();
+
+          setPC(oldPC + 5);
+
+          break;
+        }
       }
 
       if (isJumpPoint(PC()))
@@ -629,7 +696,7 @@ step()
 
     // CPY ...
     case 0xC0: { // CPY immediate
-      uchar c1 = readByte();          cpyOp(c1); incT(2); break;
+      uchar c1 = readByte();    cpyOp(c1); incT(2); break;
     }
     case 0xC4: { // CPY zero page
       uchar c1 = getZeroPage(); cpyOp(c1); incT(3); break;
@@ -640,7 +707,7 @@ step()
 
     // CPX ...
     case 0xE0: { // CPX immediate
-      uchar c1 = readByte(); cpxOp(c1); incT(2); break;
+      uchar c1 = readByte();    cpxOp(c1); incT(2); break;
     }
     case 0xE4: { // CPX zero page
       uchar c1 = getZeroPage(); cpxOp(c1); incT(3); break;
@@ -654,25 +721,25 @@ step()
       uchar c1 = getMemIndexedIndirectX(); cmpOp(c1); incT(5); break;
     }
     case 0xC5: { // CMP zero page
-      uchar c1 = getZeroPage(); cmpOp(c1); incT(3); break;
+      uchar c1 = getZeroPage();            cmpOp(c1); incT(3); break;
     }
     case 0xC9: { // CMP immediate
-      uchar c1 = readByte(); cmpOp(c1); incT(2); break;
+      uchar c1 = readByte();               cmpOp(c1); incT(2); break;
     }
     case 0xCD: { // CMP absolute
-      uchar c1 = getAbsolute(); cmpOp(c1); incT(4); break;
+      uchar c1 = getAbsolute();            cmpOp(c1); incT(4); break;
     }
     case 0xD1: { // CMP (indirect),Y
       uchar c1 = getMemIndirectIndexedY(); cmpOp(c1); incT(5); break;
     }
     case 0xD5: { // CMP zero page,X
-      uchar c1 = getZeroPageX(); cmpOp(c1); incT(4); break;
+      uchar c1 = getZeroPageX();           cmpOp(c1); incT(4); break;
     }
     case 0xD9: { // CMP absolute,Y
-      uchar c1 = getAbsoluteY(); cmpOp(c1); incT(4); break;
+      uchar c1 = getAbsoluteY();           cmpOp(c1); incT(4); break;
     }
     case 0xDD: { // CMP absolute,X
-      uchar c1 = getAbsoluteX(); cmpOp(c1); incT(4); break;
+      uchar c1 = getAbsoluteX();           cmpOp(c1); incT(4); break;
     }
 
     //---
@@ -714,44 +781,44 @@ step()
       setMemIndexedIndirectX(readByte(), A()); incT(6); break;
     }
     case 0x85: { // STA zero page
-      setByte(readByte(), A()); incT(3); break;
+      setZeroPage(A()); incT(3); break;
     }
     case 0x8D: { // STA absolute
-      setByte(readWord(), A()); incT(4); break;
+      setAbsolute(A()); incT(4); break;
     }
     case 0x91: { // STA (indirect),Y
       setMemIndirectIndexedY(readByte(), A()); incT(6); break;
     }
     case 0x95: { // STA zero page,X
-      setByte(readByte() + X(), A()); incT(4); break;
+      setZeroPageX(A()); incT(4); break;
     }
     case 0x99: { // STA absolute,Y
-      setByte(readWord() + Y(), A()); incT(5); break;
+      setAbsoluteY(A()); incT(5); break;
     }
     case 0x9D: { // STA absolute,X
-      setByte(readWord() + X(), A()); incT(5); break;
+      setAbsoluteX(A()); incT(5); break;
     }
 
     // STY ...
     case 0x84: { // STY zero page
-      setByte(readByte(), Y()); incT(3); break;
+      setZeroPage(Y()); incT(3); break;
     }
     case 0x8C: { // STY absolute
-      setByte(readWord(), Y()); incT(4); break;
+      setAbsolute(Y()); incT(4); break;
     }
     case 0x94: { // STY zero page,X
-      setByte(readByte() + X(), Y()); incT(4); break;
+      setZeroPageX(Y()); incT(4); break;
     }
 
     // STX ...
     case 0x86: { // STX zero page
-      setByte(readByte(), X()); incT(3); break;
+      setZeroPage(X()); incT(3); break;
     }
     case 0x8E: { // STX absolute
-      setByte(readWord(), X()); incT(4); break;
+      setAbsolute(X()); incT(4); break;
     }
     case 0x96: { // STX zero page,Y
-      setByte(readByte() + Y(), X()); incT(4); break;
+      setZeroPageY(X()); incT(4); break;
     }
 
     case 0x8A: { // TXA
@@ -862,7 +929,7 @@ step()
       setByte(a, c1); setNZFlags(c1); incT(6); break;
     }
     case 0xD6: { // DEC zero page,X
-      ushort a = readByte() + X(); uchar c1 = getByte(a) - 1;
+      ushort a = sumBytes(readByte(), X()); uchar c1 = getByte(a) - 1;
       setByte(a, c1); setNZFlags(c1); incT(6); break;
     }
     case 0xDE: { // DEC absolute,X
@@ -880,7 +947,7 @@ step()
       setByte(a, c1); setNZFlags(c1); incT(6); break;
     }
     case 0xF6: { // INC zero page,X
-      ushort a = readByte() + X(); uchar c1 = getByte(a) + 1;
+      ushort a = sumBytes(readByte(), X()); uchar c1 = getByte(a) + 1;
       setByte(a, c1); setNZFlags(c1); incT(6); break;
     }
     case 0xFE: { // INC absolute,X
@@ -952,7 +1019,7 @@ update()
 
 bool
 C6502::
-assemble(ushort addr, std::istream &is)
+assemble(ushort addr, std::istream &is, ushort &len)
 {
   Lines lines;
 
@@ -962,10 +1029,17 @@ assemble(ushort addr, std::istream &is)
 
   numBadLabels_ = 0;
 
+  ushort addr1 = addr;
+
   bool rc = assembleLines(addr, lines);
 
-  if (numBadLabels_ > 0)
+  if (numBadLabels_ > 0) {
+    addr = addr1;
+
     rc = assembleLines(addr, lines);
+  }
+
+  len = addr - addr1;
 
   return rc;
 }
@@ -985,7 +1059,7 @@ readLines(std::istream &is, Lines &lines)
 
 bool
 C6502::
-assembleLines(ushort addr, const Lines &lines)
+assembleLines(ushort &addr, const Lines &lines)
 {
   for (auto &line : lines) {
     if (! assembleLine(addr, line))
@@ -999,46 +1073,21 @@ bool
 C6502::
 assembleLine(ushort &addr, const std::string &line)
 {
-  auto toUpper = [](const std::string &s) {
-    std::string s1 = s;
-
-    std::transform(s1.begin(), s1.end(), s1.begin(),
-                   [](unsigned char c){ return std::toupper(c); } // correct
-                  );
-    return s1;
-  };
-
-  //---
-
   if (isDebug())
     std::cerr << "Line: '" << line << "'\n";
 
-  int pos = 0;
-  int len = line.size();
+  CParser parse(line);
 
-  auto skipSpace    = [&]() { while (pos < len && isspace(line[pos])) ++pos; };
-  auto skipNonSpace = [&]() { while (pos < len && ! isspace(line[pos])) ++pos; };
-  auto isChar       = [&](char c) { return (pos < len && line[pos] == c); };
-
-  auto readWord = [&](std::string &word) {
-    skipSpace();
-    int pos1 = pos;
-    skipNonSpace();
-    if (pos1 == pos) return false;
-    word = line.substr(pos1, pos - pos1);
-    return true;
-  };
-
-  while (pos < len) {
-    skipSpace();
+  while (! parse.eof()) {
+    parse.skipSpace();
 
     // skip comment
-    if (isChar(';')) break;
+    if (parse.isChar(';')) break;
 
     // read first word
     std::string word;
 
-    if (! readWord(word))
+    if (! parse.readWord(word))
       continue;
 
     // handle label and update first word
@@ -1047,11 +1096,11 @@ assembleLine(ushort &addr, const std::string &line)
 
       setLabel(label, addr, 4);
 
-      if (! readWord(word))
+      if (! parse.readWord(word))
         continue;
     }
 
-    std::string opName = toUpper(word);
+    std::string opName = parse.toUpper(word);
 
     //---
 
@@ -1101,14 +1150,14 @@ assembleLine(ushort &addr, const std::string &line)
       // read label
       std::string label;
 
-      if (! readWord(label)) {
+      if (! parse.readWord(label)) {
         std::cerr << "Invalid define '" << line << "'\n";
         return false;
       }
 
       std::string value;
 
-      if (! readWord(value)) {
+      if (! parse.readWord(value)) {
         std::cerr << "Invalid define '" << line << "'\n";
         return false;
       }
@@ -1128,17 +1177,146 @@ assembleLine(ushort &addr, const std::string &line)
 
     //---
 
-    if (opName == "OUT") {
+    if (opName == "ORG") {
       std::string arg;
 
-      if (! readWord(arg)) {
-        std::cerr << "Invalid OUT '" << line << "'\n";
+      if (! parse.readWord(arg)) {
+        std::cerr << "Invalid ORG '" << line << "'\n";
+        return false;
+      }
+
+      CParser parse1(arg);
+
+      if (! parse1.isValue()) {
+        std::cerr << "Invalid ORG value '" << line << "'\n";
+        return false;
+      }
+
+      uchar vlen;
+
+      addr = parse1.getValue(vlen);
+
+      break;
+    }
+
+    //---
+
+    if (opName == "DB") {
+      std::string arg;
+
+      if (! parse.readWord(arg)) {
+        std::cerr << "Invalid DB '" << line << "'\n";
+        return false;
+      }
+
+      CParser parse1(arg);
+
+      while (! parse1.eof()) {
+        std::string word1;
+
+        if (! parse1.readSepWord(word1, ','))
+          break;
+
+        CParser parse2(word1);
+
+        if      (parse2.isString()) {
+          char c = parse2.readChar();
+
+          while (! parse2.eof() && ! parse2.isChar(c))
+            setByte(addr++, parse2.readChar());
+        }
+        else if (parse2.isValue()) {
+          uchar vlen;
+
+          ushort value1 = parse2.getValue(vlen);
+
+          if (value1 > 0xFF) {
+            setByte(addr++, (value1 & 0xFF00) >> 8);
+            setByte(addr++,  value1 & 0x00FF      );
+          }
+          else
+            setByte(addr++, value1 & 0xFF);
+        }
+        else {
+          std::cerr << "Invalid DB value '" << word1 << "'\n";
+          return false;
+        }
+      }
+
+      break;
+    }
+
+    //---
+
+    if (opName == "OUT" || opName == "OUTN") {
+      std::string arg;
+
+      if (! parse.readWord(arg)) {
+        std::cerr << "Invalid OUT/OUTN '" << line << "'\n";
         return false;
       }
 
       if (isEnableOutputProcs()) {
-        addByte(addr, 0x20     ); // JSR
-        addWord(addr, outAAddr_); // OUT
+        CParser parse1(arg);
+
+        uchar  o = 0x00;
+        ushort a = 0x0000; bool aSet = false;
+
+        while (! parse1.eof()) {
+          std::string word1;
+
+          if (! parse1.readSepWord(word1, ','))
+            break;
+
+          if      (word1 == "A" ) o |= 0x01;
+          else if (word1 == "AF") o |= 0x81;
+          else if (word1 == "X" ) o |= 0x02;
+          else if (word1 == "Y" ) o |= 0x04;
+          else if (word1 == "SP") o |= 0x08;
+          else if (word1 == "PC") o |= 0x10;
+          else if (word1 == "SR") o |= 0x80;
+
+          else {
+            CParser parse2(word1);
+
+            std::string label;
+
+            if      (parse2.isValue()) {
+              uchar vlen;
+
+              a    = parse2.getValue(vlen);
+              aSet = true;
+            }
+            else if (parse2.readLabel(label)) {
+              ushort lvalue;
+              uchar  llen;
+
+              if (! getLabel(label, lvalue, llen))
+                ++numBadLabels_;
+
+              a    = lvalue;
+              aSet = true;
+            }
+            else {
+              std::cerr << "Invalid OUT arg '" << word1 << "'\n";
+              return false;
+            }
+          }
+        }
+
+        if (o != 0x00) {
+          addByte(addr, 0x20                                    ); // JSR
+          addWord(addr, (opName == "OUT" ? outAddr_ : outNAddr_)); // OUT
+          addByte(addr, 0xA9                                    ); // LDA
+          addByte(addr, o                                       ); // VALUE
+        }
+
+        if (aSet) {
+          addByte(addr, 0x20                                          ); // JSR
+          addWord(addr, (opName == "OUT" ? outMemAddr_ : outMemNAddr_)); // OUT
+          addByte(addr, 0xAD                                          ); // LDA
+          addWord(addr, a                                             ); // VALUE
+        }
       }
       else {
         std::cerr << "OUT not enabled\n";
@@ -1148,6 +1326,57 @@ assembleLine(ushort &addr, const std::string &line)
       break;
     }
 
+    //---
+
+    if (opName == "OUTS") {
+      std::string arg;
+
+      if (! parse.readWord(arg)) {
+        std::cerr << "Invalid OUTS '" << line << "'\n";
+        return false;
+      }
+
+      if (isEnableOutputProcs()) {
+        CParser parse1(arg);
+
+        ushort a = 0x0000;
+
+        std::string label;
+
+        if      (parse1.isValue()) {
+          uchar vlen;
+
+          a = parse1.getValue(vlen);
+        }
+        else if (parse1.readLabel(label)) {
+          ushort lvalue;
+          uchar  llen;
+
+          if (! getLabel(label, lvalue, llen))
+            ++numBadLabels_;
+
+          a = lvalue;
+        }
+        else {
+          std::cerr << "Invalid OUTS arg '" << arg << "'\n";
+          return false;
+        }
+
+        addByte(addr, 0x20       ); // JSR
+        addWord(addr, outStrAddr_); // OUT
+        addByte(addr, 0xAD       ); // LDA
+        addWord(addr, a          ); // VALUE
+      }
+      else {
+        std::cerr << "OUTS not enabled\n";
+        return false;
+      }
+
+      break;
+    }
+
+    //---
+
     // handle op
 
     if (isDebug())
@@ -1156,7 +1385,7 @@ assembleLine(ushort &addr, const std::string &line)
     // read optional arg
     std::string arg;
 
-    if (readWord(arg)) {
+    if (parse.readWord(arg)) {
       if (isDebug())
         std::cerr << " " << arg;
     }
@@ -1226,7 +1455,7 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
     else if (xyMode == XYMode::X) {
       // ADC $xx,X (absolute or zero page)
       if      (mode == ArgMode::MEMORY) {
-        if (vlen <= 2) { return addOpWord(0x75, value); } // zero page
+        if (vlen <= 2) { return addOpByte(0x75, value); } // zero page
         else           { return addOpWord(0x7D, value); }
       }
       // ADC ($xx,X)
@@ -1355,7 +1584,7 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
     else if (xyMode == XYMode::X) {
       // CMP $xx,X (absolute or zero page)
       if      (mode == ArgMode::MEMORY) {
-        if (vlen <= 2) { return addOpWord(0xD5, value); } // zero page
+        if (vlen <= 2) { return addOpByte(0xD5, value); } // zero page
         else           { return addOpWord(0xDD, value); }
       }
       // CMP ($xx,X)
@@ -1421,7 +1650,7 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
     else if (xyMode == XYMode::X) {
       // DEC $xx,X (absolute or zero page)
       if      (mode == ArgMode::MEMORY) {
-        if (vlen <= 2) { return addOpWord(0xD6, value); } // zero page
+        if (vlen <= 2) { return addOpByte(0xD6, value); } // zero page
         else           { return addOpWord(0xDE, value); }
       }
     }
@@ -1481,7 +1710,7 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
     else if (xyMode == XYMode::X) {
       // INC $xx,X (absolute or zero page)
       if      (mode == ArgMode::MEMORY) {
-        if (vlen <= 2) { return addOpWord(0xF6, value); } // zero page
+        if (vlen <= 2) { return addOpByte(0xF6, value); } // zero page
         else           { return addOpWord(0xFE, value); }
       }
     }
@@ -1533,7 +1762,7 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
     else if (xyMode == XYMode::X) {
       // LDA $xx,X (absolute or zero page)
       if      (mode == ArgMode::MEMORY) {
-        if (vlen <= 2) { return addOpWord(0xB5, value); } // zero page
+        if (vlen <= 2) { return addOpByte(0xB5, value); } // zero page
         else           { return addOpWord(0xBD, value); }
       }
       // LDA ($xx,X)
@@ -1571,7 +1800,7 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
     else if (xyMode == XYMode::Y) {
       // LDX $xx,Y (absolute or zero page)
       if      (mode == ArgMode::MEMORY) {
-        if (vlen <= 2) { return addOpWord(0xB6, value); } // zero page
+        if (vlen <= 2) { return addOpByte(0xB6, value); } // zero page
         else           { return addOpWord(0xBE, value); }
       }
     }
@@ -1593,7 +1822,7 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
     else if (xyMode == XYMode::X) {
       // LDY $xx,X (absolute or zero page)
       if      (mode == ArgMode::MEMORY) {
-        if (vlen <= 2) { return addOpWord(0xB4, value); } // zero page
+        if (vlen <= 2) { return addOpByte(0xB4, value); } // zero page
         else           { return addOpWord(0xBC, value); }
       }
     }
@@ -1733,7 +1962,7 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
     else if (xyMode == XYMode::X) {
       // SBC $xx,X (absolute or zero page)
       if      (mode == ArgMode::MEMORY) {
-        if (vlen <= 2) { return addOpWord(0xF5, value); } // zero page
+        if (vlen <= 2) { return addOpByte(0xF5, value); } // zero page
         else           { return addOpWord(0xFD, value); }
       }
       // SBC ($xx,X)
@@ -1861,61 +2090,20 @@ decodeAssembleArg(const std::string &arg, ArgMode &mode, XYMode &xyMode, ushort 
 
   //---
 
-  int pos = 0;
-  int len = arg.size();
+  CParser parse(arg);
 
   //---
 
-  auto isChar   = [&](char c) { return (pos < len && arg[pos] == c); };
-  auto skipChar = [&]() { ++pos; };
-  auto isDigit  = [&]() { return (pos < len && isdigit(arg[pos])); };
-
-  auto getHexValue = [&](uchar &alen) {
-    static std::string xchars = "0123456789abcdef";
-
-    alen = 0;
-
-    ushort hvalue = 0;
-
-    while (pos < len && std::isxdigit(arg[pos])) {
-      char c1 = tolower(arg[pos]);
-
-      auto p = xchars.find(c1);
-
-      hvalue = hvalue*16 + int(p);
-
-      ++pos;
-      ++alen;
-    }
-
-    return hvalue;
-  };
-
-  auto getDecValue = [&](uchar &alen) {
-    static std::string dchars = "0123456789";
-
-    alen = 0;
-
-    ushort dvalue = 0;
-
-    while (pos < len && std::isdigit(arg[pos])) {
-      auto p = dchars.find(arg[pos]);
-
-      dvalue = dvalue*16 + int(p);
-
-      ++pos;
-      ++alen;
-    }
-
-    return dvalue;
-  };
-
   auto readXYMode = [&](XYMode &xyMode1) {
-    if (isChar(',')) {
-      skipChar();
+    if (parse.isChar(',')) {
+      parse.skipChar();
 
-      if      (isChar('X') || isChar('x')) { skipChar(); xyMode1 = XYMode::X; return true; }
-      else if (isChar('Y') || isChar('y')) { skipChar(); xyMode1 = XYMode::Y; return true; }
+      if      (parse.isChar('X') || parse.isChar('x')) {
+        parse.skipChar(); xyMode1 = XYMode::X; return true;
+      }
+      else if (parse.isChar('Y') || parse.isChar('y')) {
+        parse.skipChar(); xyMode1 = XYMode::Y; return true;
+      }
 
       return false;
     }
@@ -1924,40 +2112,22 @@ decodeAssembleArg(const std::string &arg, ArgMode &mode, XYMode &xyMode, ushort 
     }
   };
 
-  auto readLabel = [&](std::string &label) {
-    label = "";
-
-    while (pos < len) {
-      if (isspace(arg[pos]) || arg[pos] == ',' || arg[pos] == ')')
-        break;
-
-      label += arg[pos++];
-    }
-
-    return (label.size() > 0);
-  };
-
   //---
 
   // immediate #<value>
-  if      (isChar('#')) {
-    skipChar();
+  if      (parse.isChar('#')) {
+    parse.skipChar();
 
     mode = ArgMode::LITERAL;
 
     // byte/word
-    if      (isChar('$')) {
-      skipChar();
-
-      value = getHexValue(vlen);
-    }
-    else if (isDigit()) {
-      value = getDecValue(vlen);
+    if (parse.isValue()) {
+      value = parse.getValue(vlen);
     }
     else {
       std::string label;
 
-      if (readLabel(label)) {
+      if (parse.readLabel(label)) {
         ushort lvalue;
         uchar  llen;
 
@@ -1970,41 +2140,27 @@ decodeAssembleArg(const std::string &arg, ArgMode &mode, XYMode &xyMode, ushort 
     }
   }
   // <value> byte/word
-  else if (isChar('$')) {
-    skipChar();
-
+  else if (parse.isValue()) {
     mode  = ArgMode::MEMORY;
-    value = getHexValue(vlen);
-
-    if (! readXYMode(xyMode))
-      return false;
-  }
-  else if (isDigit()) {
-    mode  = ArgMode::MEMORY;
-    value = getDecValue(vlen);
+    value = parse.getValue(vlen);
 
     if (! readXYMode(xyMode))
       return false;
   }
   // indirect (<value>)
-  else if (isChar('(')) {
-    skipChar();
+  else if (parse.isChar('(')) {
+    parse.skipChar();
 
     mode = ArgMode::MEMORY_CONTENTS;
 
     // <value> byte/word
-    if      (isChar('$')) {
-      skipChar();
-
-      value = getHexValue(vlen);
-    }
-    else if (isDigit()) {
-      value = getDecValue(vlen);
+    if (parse.isValue()) {
+      value = parse.getValue(vlen);
     }
     else {
       std::string label;
 
-      if (readLabel(label)) {
+      if (parse.readLabel(label)) {
         ushort lvalue;
         uchar  llen;
 
@@ -2016,22 +2172,22 @@ decodeAssembleArg(const std::string &arg, ArgMode &mode, XYMode &xyMode, ushort 
       }
     }
 
-    if (isChar(',')) {
+    if (parse.isChar(',')) {
       if (! readXYMode(xyMode))
         return false;
 
-      if (! isChar(')'))
+      if (! parse.isChar(')'))
         return false;
 
-      skipChar();
+      parse.skipChar();
     }
     else {
-      if (! isChar(')'))
+      if (! parse.isChar(')'))
         return false;
 
-      skipChar();
+      parse.skipChar();
 
-      if (isChar(',')) {
+      if (parse.isChar(',')) {
         if (! readXYMode(xyMode))
           return false;
       }
@@ -2155,8 +2311,8 @@ disassembleAddr(ushort &addr, std::ostream &os) const
   };
 
   auto outputIndirect  = [&]() { os << "("; outputAbsolute(); os << ")"; };
-  auto outputIndirectX = [&]() { os << "("; outputAbsolute(); os << ",X)"; };
-  auto outputIndirectY = [&]() { os << "("; outputAbsolute(); os << ",Y)"; };
+  auto outputIndirectX = [&]() { os << "("; outputZeroPage(); os << ",X)"; };
+  auto outputIndirectY = [&]() { os << "("; outputZeroPage(); os << "),Y"; };
 
   auto c = readByte(addr);
 

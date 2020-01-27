@@ -1,0 +1,11 @@
+MESSAGE:
+  DB 10,13,"Message",10,13,0
+
+  ORG $10
+
+  LDA #$11
+  OUT A
+
+  OUT MESSAGE
+
+  BRK
