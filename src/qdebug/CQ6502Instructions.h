@@ -6,6 +6,7 @@
 
 class CQ6502Dbg;
 class QScrollBar;
+class QCheckBox;
 
 class CQ6502InstLine {
  public:
@@ -82,15 +83,17 @@ class CQ6502Inst : public QFrame {
  private:
   void updateSize();
 
+  void resizeEvent(QResizeEvent *) override;
+
   void paintEvent(QPaintEvent *) override;
 
  private:
   typedef std::vector<CQ6502InstLine> LineList;
-  typedef std::map<uint,uint>        PCLineMap;
-  typedef std::set<uint>             BreakpointList;
+  typedef std::map<uint,uint>         PCLineMap;
+  typedef std::set<uint>              BreakpointList;
 
   CQ6502Dbg*     dbg_        { nullptr };
-  bool            resizable_ { true };
+  bool           resizable_  { true };
   QScrollBar*    vbar_       { nullptr };
   LineList       lines_;
   int            yOffset_    { 0 };
@@ -117,10 +120,13 @@ class CQ6502InstArea : public QFrame {
 
   void updateLayout();
 
+  void updateText(ushort pc);
+
  private:
-  CQ6502Dbg*  dbg_  { nullptr };
-  CQ6502Inst* text_ { nullptr };
-  QScrollBar* vbar_ { nullptr };
+  CQ6502Dbg*  dbg_         { nullptr };
+  QCheckBox*  scrollCheck_ { nullptr };
+  CQ6502Inst* text_        { nullptr };
+  QScrollBar* vbar_        { nullptr };
 };
 
 #endif

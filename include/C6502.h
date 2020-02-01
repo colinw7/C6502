@@ -41,6 +41,9 @@ class C6502 {
   bool isHalt() const { return halt_; }
   void setHalt(bool b) { halt_ = b; }
 
+  bool isBreak() const { return break_; }
+  void setBreak(bool b) { break_ = b; }
+
   bool isDebugger() const { return debugger_; }
   void setDebugger(bool b) { debugger_ = b; }
 
@@ -132,7 +135,9 @@ class C6502 {
 
   // Ticks
 
-  inline void incT(uchar n) { t_ += n; }
+  inline void incT(uchar n) { t_ += n; tick(n); }
+
+  virtual void tick(uchar) { }
 
   //------
 
@@ -433,6 +438,8 @@ class C6502 {
   void resetIRQ   ();
   void resetBRK   ();
 
+  void rti();
+
   virtual void handleNMI() { }
   virtual void handleIRQ() { }
   virtual void handleBreak() { }
@@ -448,6 +455,8 @@ class C6502 {
   // run
 
   void step();
+
+  bool next();
 
   bool run();
   bool run(ushort addr);
@@ -504,6 +513,10 @@ class C6502 {
   void getBreakpoints(std::vector<ushort> &addrs) const {
     for (const auto &addr : breakpoints_)
       addrs.push_back(addr);
+  }
+
+  bool isTmpBreakpoint(ushort addr) const {
+    return (hasTmpBrk_ && addr == tmpBrk_);
   }
 
   bool isBreakpoint(ushort addr) const {
@@ -656,6 +669,13 @@ class C6502 {
 
   //---
 
+  // interrupts
+  bool inNMI_ { false };
+  bool inIRQ_ { false };
+  bool inBRK_ { false };
+
+  //---
+
   // labels (assember)
   struct AddrLen {
     ushort addr { 0 };
@@ -687,6 +707,9 @@ class C6502 {
   using Breakpoints = std::set<ushort>;
 
   Breakpoints breakpoints_;
+
+  bool   hasTmpBrk_ { false };
+  ushort tmpBrk_    { 0 };
 
   //---
 

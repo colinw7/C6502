@@ -12,7 +12,6 @@ main(int argc, char **argv)
   bool   disassemble = false;
   bool   run         = false;
   bool   print       = false;
-  bool   c64         = false;
   bool   debug       = false;
 
   using Args = std::vector<std::string>;
@@ -47,9 +46,6 @@ main(int argc, char **argv)
           len = atoi(argv[i]);
         }
       }
-      else if (strcmp(&argv[i][1], "c64") == 0) {
-        c64 = true;
-      }
       else {
         std::cerr << "Invalid arg '" << argv[i] << "'\n";
         exit(1);
@@ -64,10 +60,6 @@ main(int argc, char **argv)
     cpu.setDebug(true);
 
   cpu.setEnableOutputProcs(true);
-
-  if (c64) {
-    cpu.load64Rom();
-  }
 
   if (assemble) {
     std::cerr << "--- Assemble ---\n";

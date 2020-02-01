@@ -628,22 +628,13 @@ updateRegisters()
 
   //----
 
-  int mem1 = memoryArea_->vbar()->value();
-  int mem2 = mem1 + 20;
-  int mem  = pc/memLineWidth();
-
-  if (isMemoryTrace()) {
-    if (mem < mem1 || mem > mem2) {
-      memoryArea_->vbar()->setValue(mem);
-    }
-    else {
-      memoryArea_->text()->update();
-    }
-  }
+  if (isMemoryTrace())
+    memoryArea_->updateText(pc);
 
   //----
 
   if (isInstructionsTrace()) {
+#if 0
     uint lineNum;
 
     if (! instructionsArea_->text()->getLineForPC(pc, lineNum))
@@ -651,6 +642,9 @@ updateRegisters()
 
     if (instructionsArea_->text()->getLineForPC(pc, lineNum))
       instructionsArea_->vbar()->setValue(lineNum);
+#else
+    instructionsArea_->updateText(pc);
+#endif
 
     //----
 
@@ -658,7 +652,7 @@ updateRegisters()
     int         alen;
     std::string astr;
 
-    cpu_->disassembleAddr(cpu_->PC(), astr, alen);
+    cpu_->disassembleAddr(pc, astr, alen);
 
     opData_->setText(astr.c_str());
   }
@@ -893,7 +887,9 @@ void
 CQ6502Dbg::
 nextSlot()
 {
-  //cpu_->next();
+  haltCheck_->setChecked(false);
+
+  cpu_->next();
 
   updateAll();
 }
@@ -922,7 +918,7 @@ void
 CQ6502Dbg::
 stopSlot()
 {
-  //cpu_->stop();
+  cpu_->setBreak(true);
 
   updateAll();
 }
@@ -933,7 +929,7 @@ restartSlot()
 {
   cpu_->reset();
 
-  //cpu_->setPC(cpu_->getLoadPos());
+  cpu_->setPC(cpu_->org());
 
   updateAll();
 }

@@ -3,10 +3,10 @@
 #include <CQUtil.h>
 #include <CStrUtil.h>
 
+#include <QCheckBox>
 #include <QScrollBar>
 #include <QHBoxLayout>
 #include <QMenu>
-#include <QScrollBar>
 #include <QContextMenuEvent>
 #include <QPainter>
 #include <cassert>
@@ -17,9 +17,28 @@ CQ6502InstArea(CQ6502Dbg *dbg) :
 {
   setObjectName("instArea");
 
-  auto layout = CQUtil::makeLayout<QHBoxLayout>(this, 2, 2);
+  auto layout = CQUtil::makeLayout<QVBoxLayout>(this, 2, 2);
 
-  //---
+  //------
+
+  auto toolbar_      = CQUtil::makeWidget<QFrame>("toolbar");
+  auto toolBarLayout = CQUtil::makeLayout<QHBoxLayout>(toolbar_, 2, 2);
+
+  toolbar_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+  scrollCheck_ = CQUtil::makeLabelWidget<QCheckBox>("Auto Scroll", "scrollCheck");
+
+  scrollCheck_->setChecked(true);
+
+  toolBarLayout->addWidget(scrollCheck_);
+  toolBarLayout->addStretch();
+
+  layout->addWidget(toolbar_);
+
+  //------
+
+  auto textArea       = CQUtil::makeWidget<QFrame>("textArea");
+  auto textAreaLayout = CQUtil::makeLayout<QHBoxLayout>(textArea, 0, 0);
 
   text_ = new CQ6502Inst(dbg_);
 
@@ -35,22 +54,30 @@ CQ6502InstArea(CQ6502Dbg *dbg) :
 
   //---
 
-  layout->addWidget(text_);
-  layout->addStretch();
-  layout->addWidget(vbar_);
+  textAreaLayout->addWidget(text_);
+  textAreaLayout->addStretch();
+  textAreaLayout->addWidget(vbar_);
 
   //---
 
-  updateLayout();
+  layout->addWidget(textArea);
 }
 
 void
 CQ6502InstArea::
-updateLayout()
+updateText(ushort pc)
 {
-  vbar_->setPageStep  (dbg_->getNumMemoryLines());
-  vbar_->setSingleStep(1);
-  vbar_->setRange     (0, 8192 - vbar_->pageStep());
+  uint lineNum;
+
+  bool rc = text()->getLineForPC(pc, lineNum);
+
+  if (! rc)
+    text()->reload();
+
+  if (scrollCheck_->isChecked()) {
+    if (rc)
+      vbar()->setValue(lineNum);
+  }
 }
 
 //------
@@ -157,6 +184,21 @@ contextMenuEvent(QContextMenuEvent *event)
   menu->exec(event->globalPos());
 
   delete menu;
+}
+
+void
+CQ6502Inst::
+resizeEvent(QResizeEvent *)
+{
+  QFontMetrics fm(font());
+
+  int ps = height()/(fm.height() + 1);
+
+  uint numLines = getNumLines();
+
+  vbar_->setPageStep  (ps);
+  vbar_->setSingleStep(1);
+  vbar_->setRange     (0, numLines - vbar_->pageStep());
 }
 
 void
@@ -356,9 +398,17 @@ reload()
     pc = pc1;
   }
 
+  //---
+
+  QFontMetrics fm(font());
+
+  int ps = height()/(fm.height() + 1);
+
   uint numLines = getNumLines();
 
-  vbar_->setRange(0, numLines - vbar_->pageStep());
+  vbar_->setPageStep  (ps);
+  vbar_->setSingleStep(1);
+  vbar_->setRange     (0, numLines - vbar_->pageStep());
 
   vbar_->setValue(0);
 

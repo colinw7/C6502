@@ -4,6 +4,8 @@
 #include <QFrame>
 
 class CQ6502Dbg;
+class QScrollBar;
+class QCheckBox;
 
 class CQ6502MemLine {
  public:
@@ -86,8 +88,6 @@ class CQ6502Mem : public QFrame {
 
 //------
 
-class QScrollBar;
-
 class CQ6502MemArea : public QFrame {
   Q_OBJECT
 
@@ -100,10 +100,13 @@ class CQ6502MemArea : public QFrame {
 
   void updateLayout();
 
+  void updateText(ushort pc);
+
  private:
-  CQ6502Dbg*  dbg_  { nullptr };
-  CQ6502Mem*  text_ { nullptr };
-  QScrollBar* vbar_ { nullptr };
+  CQ6502Dbg*  dbg_         { nullptr };
+  QCheckBox*  scrollCheck_ { nullptr };
+  CQ6502Mem*  text_        { nullptr };
+  QScrollBar* vbar_        { nullptr };
 };
 
 #endif

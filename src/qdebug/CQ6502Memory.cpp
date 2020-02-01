@@ -2,6 +2,7 @@
 #include <CQ6502Dbg.h>
 #include <CQUtil.h>
 
+#include <QCheckBox>
 #include <QScrollBar>
 #include <QHBoxLayout>
 #include <QMenu>
@@ -15,9 +16,26 @@ CQ6502MemArea(CQ6502Dbg *dbg) :
 {
   setObjectName("memArea");
 
-  auto layout = CQUtil::makeLayout<QHBoxLayout>(this, 2, 2);
+  auto layout = CQUtil::makeLayout<QVBoxLayout>(this, 2, 2);
 
-  //---
+  //------
+
+  auto toolbar_      = CQUtil::makeWidget<QFrame>("toolbar");
+  auto toolBarLayout = CQUtil::makeLayout<QHBoxLayout>(toolbar_, 2, 2);
+
+  toolbar_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+  scrollCheck_ = CQUtil::makeLabelWidget<QCheckBox>("Auto Scroll", "scrollCheck");
+
+  toolBarLayout->addWidget(scrollCheck_);
+  toolBarLayout->addStretch();
+
+  layout->addWidget(toolbar_);
+
+  //------
+
+  auto textArea       = CQUtil::makeWidget<QFrame>("textArea");
+  auto textAreaLayout = CQUtil::makeLayout<QHBoxLayout>(textArea, 0, 0);
 
   text_ = new CQ6502Mem(dbg_);
 
@@ -31,9 +49,13 @@ CQ6502MemArea(CQ6502Dbg *dbg) :
 
   //---
 
-  layout->addWidget(text_);
-  layout->addStretch();
-  layout->addWidget(vbar_);
+  textAreaLayout->addWidget(text_);
+  textAreaLayout->addStretch();
+  textAreaLayout->addWidget(vbar_);
+
+  //------
+
+  layout->addWidget(textArea);
 
   //---
 
@@ -47,6 +69,22 @@ updateLayout()
   vbar_->setPageStep  (dbg_->getNumMemoryLines());
   vbar_->setSingleStep(1);
   vbar_->setRange     (0, text_->maxLines() - vbar_->pageStep());
+}
+
+void
+CQ6502MemArea::
+updateText(ushort pc)
+{
+  if (scrollCheck_->isChecked()) {
+    int mem1 = vbar()->value();
+    int mem2 = mem1 + 20;
+    int mem  = pc/dbg_->memLineWidth();
+
+    if (mem < mem1 || mem > mem2)
+      vbar()->setValue(mem);
+  }
+
+  text()->update();
 }
 
 //------

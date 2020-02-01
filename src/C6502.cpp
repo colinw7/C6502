@@ -37,11 +37,18 @@ void
 C6502::
 resetNMI()
 {
+  if (inNMI_) {
+    std::cerr << "NMI in NMI\n";
+    setBreak(true);
+  }
+
+  inNMI_ = true;
+
   setBFlag(false);
   setXFlag(true);
 
   // save state for RTI
-  pushWord(PC() + 2);
+  pushWord(PC());
   pushByte(SR());
 
   setIFlag(true);
@@ -73,11 +80,18 @@ resetIRQ()
   if (Iflag())
     return;
 
+  if (inIRQ_) {
+    std::cerr << "IRQ in IRQ\n";
+    setBreak(true);
+  }
+
+  inIRQ_ = true;
+
   setBFlag(false);
   setXFlag(true);
 
   // save state for RTI
-  pushWord(PC() + 2);
+  pushWord(PC());
   pushByte(SR());
 
   setIFlag(true);
@@ -94,8 +108,15 @@ void
 C6502::
 resetBRK()
 {
+  if (inBRK_) {
+    std::cerr << "BRK in BRK\n";
+    setBreak(true);
+  }
+
+  inBRK_ = true;
+
   // save state for RTI
-  pushWord(PC() + 1);
+  pushWord(PC());
   pushByte(SR());
 
   setIFlag(true);
@@ -106,17 +127,24 @@ resetBRK()
   incT(7);
 }
 
-//---
-
-#if 0
 void
 C6502::
-load64Rom()
+rti()
 {
-  memset(0xA000, c64_basic_data , 0x2000);
-  memset(0xE000, c64_kernel_data, 0x2000);
+  if (! inNMI_ && ! inIRQ_ && ! inBRK_) {
+    std::cerr << "RTI not in NMI, IRQ or BRK \n";
+    setBreak(true);
+  }
+
+  inNMI_ = false;
+  inIRQ_ = false;
+  inBRK_ = false;
+
+  setSR(popByte());
+  setPC(popWord());
+
+  incT(6);
 }
-#endif
 
 //---
 
@@ -144,17 +172,17 @@ bool
 C6502::
 cont()
 {
-  break_ = false;
+  setBreak(false);
 
   while (! isHalt()) {
     step();
 
     update();
 
-    if (break_)
+    if (isBreak())
       break;
 
-    if (isBreakpoint(PC())) {
+    if (isTmpBreakpoint(PC()) || isBreakpoint(PC())) {
       breakpointHit();
       break;
     }
@@ -176,7 +204,7 @@ step()
 
       resetBRK();
 
-      break_ = true;
+      setBreak(true);
 
       handleBreak();
 
@@ -674,10 +702,7 @@ step()
     }
 
     case 0x40: { // RTI (Return from Interrupt)
-      setSR(popByte());
-      setPC(popWord());
-
-      incT(6);
+      rti();
 
       break;
     }
@@ -821,23 +846,23 @@ step()
       setZeroPageY(X()); incT(4); break;
     }
 
-    case 0x8A: { // TXA
+    case 0x8A: { // TXA (Transfer X to A)
       setA(X()); setNZFlags(A()); incT(2); break;
     }
-    case 0x9A: { // TXS
+    case 0x9A: { // TXS (Transfer X to SP)
       setSP(X()); incT(2); break;
     }
-    case 0xAA: { // TAX
+    case 0xAA: { // TAX (Transfer A to X)
       setX(A()); setNZFlags(X()); incT(2); break;
     }
-    case 0xBA: { // TSX
+    case 0xBA: { // TSX (Transfer SP to X)
       setX(SP()); setNZFlags(X()); incT(2); break;
     }
 
-    case 0x98: { // TYA
+    case 0x98: { // TYA (Transfer Y to A)
       setA(Y()); setNZFlags(A()); incT(2); break;
     }
-    case 0xA8: { // TAY
+    case 0xA8: { // TAY (Transfer A to Y)
       setY(A()); setNZFlags(Y()); incT(2); break;
     }
 
@@ -997,7 +1022,9 @@ step()
                         case 0xEB:                    case 0xEF:
               case 0xF2:case 0xF3:case 0xF4:case 0xF7:
               case 0xFA:case 0xFB:case 0xFC:          case 0xFF: {
-      std::cerr << "Invalid byte "; outputHex02(std::cerr, c); std::cerr << "\n";
+      std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+      std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+      setBreak(true);
       break;
     }
 
@@ -1005,6 +1032,26 @@ step()
       assert(false);
       break;
   }
+}
+
+bool
+C6502::
+next()
+{
+  std::string str;
+  int         len;
+
+  if (! disassembleAddr(PC(), str, len))
+    return false;
+
+  hasTmpBrk_ = true;
+  tmpBrk_    = PC() + len;
+
+  cont();
+
+  hasTmpBrk_ = false;
+
+  return true;
 }
 
 void
