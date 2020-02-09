@@ -22,6 +22,8 @@ void
 CQ6502Stack::
 update()
 {
+  c6502_->setDebugger(true);
+
   clear();
 
   uchar sp = 0xff;
@@ -46,4 +48,6 @@ update()
 
     append(str.c_str());
   }
+
+  c6502_->setDebugger(false);
 }

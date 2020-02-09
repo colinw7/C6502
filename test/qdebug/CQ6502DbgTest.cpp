@@ -22,7 +22,8 @@ class C6502Test : public C6502 {
 //void flagsChanged() override { if (dbg_) dbg_->updateSlot(); }
 //void stackChanged() override { if (dbg_) dbg_->updateSlot(); }
   void pcChanged   () override { if (dbg_) dbg_->updateSlot(); }
-//void memChanged  () override { if (dbg_) dbg_->updateSlot(); }
+
+//void memChanged(ushort addr, ushort len) override { if (dbg_) dbg_->updateSlot(); }
 
   void handleBreak  () override { if (dbg_) dbg_->forceHalt (); }
   void breakpointHit() override { if (dbg_) dbg_->forceHalt (); }

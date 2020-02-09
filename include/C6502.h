@@ -158,7 +158,7 @@ class C6502 {
   inline ushort getWord(ushort addr) const { return (getByte(addr) | (getByte(addr + 1) << 8)); }
 
   virtual uchar getByte(ushort addr) const { return mem_[addr]; }
-  virtual void  setByte(ushort addr, uchar c) { mem_[addr] = c; memChanged(); }
+  virtual void  setByte(ushort addr, uchar c) { mem_[addr] = c; memChanged(addr, 1); }
 
   inline void setWord(ushort addr, ushort c) { setByte(addr, c & 0xFF); setByte(addr + 1, c >> 8); }
 
@@ -185,11 +185,17 @@ class C6502 {
   inline uchar memIndirectIndexedY(uchar c) { return getByte(getWord(c) + Y()); }
   inline void setMemIndirectIndexedY(uchar c, uchar v) { return setByte(getWord(c) + Y(), v); }
 
+  // store len bytes of data at 'data' in CPU at address 'addr'
   virtual void memset(ushort addr, const uchar *data, ushort len) {
-    memcpy(&mem_[addr], data, len); memChanged();
+    std::memcpy(&mem_[addr], data, len); memChanged(addr, len);
   }
 
-  virtual void memChanged() { }
+  // get len bytes in 'data' from CPU memory at address 'addr'
+  virtual void memget(ushort addr, uchar *data, ushort len) {
+    std::memcpy(data, &mem_[addr], len);
+  }
+
+  virtual void memChanged(ushort /*addr*/, ushort /*len*/) { }
 
   //---
 

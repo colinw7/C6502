@@ -152,7 +152,7 @@ bool
 C6502::
 run()
 {
-  return run(org());
+  return run(PC());
 }
 
 bool
