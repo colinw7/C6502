@@ -38,6 +38,8 @@ class C6502 {
   bool isDebug() const { return debug_; }
   void setDebug(bool b) { debug_ = b; }
 
+  //---
+
   bool isHalt() const { return halt_; }
   void setHalt(bool b) { halt_ = b; }
 
@@ -50,8 +52,13 @@ class C6502 {
   const ushort &org() const { return org_; }
   void setOrg(const ushort &v) { org_ = v; }
 
+  bool isUnsupported() const { return unsupported_; }
+  void setUnsupported(bool b) { unsupported_ = b; }
+
   bool isEnableOutputProcs() const { return enableOutputProcs_; }
   void setEnableOutputProcs(bool b) { enableOutputProcs_ = b; }
+
+  bool inNMI() const { return inNMI_; }
 
   //------
 
@@ -700,12 +707,17 @@ class C6502 {
   //---
 
   bool debug_ { false };
+
+  //---
+
   bool halt_  { false };
   bool break_ { false };
 
   bool debugger_ { false };
 
   ushort org_ { 0x0000 };
+
+  bool unsupported_ { false };
 
   //---
 

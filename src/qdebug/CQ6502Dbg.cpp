@@ -63,8 +63,8 @@ setFixedFont(const QFont &font)
 {
   fixedFont_ = font;
 
-  memoryArea_      ->text()->setFont(getFixedFont());
-  instructionsArea_->text()->setFont(getFixedFont());
+  memoryArea_      ->setFont(getFixedFont());
+  instructionsArea_->setFont(getFixedFont());
 
   stackText_->setFont(getFixedFont());
   traceBack_->setFont(getFixedFont());
@@ -86,7 +86,9 @@ setNumMemoryLines(int i)
   if (i != numMemoryLines_) {
     numMemoryLines_ = i;
 
-    memoryArea_->text()->setFont(getFixedFont());
+    memoryArea_->setFont(getFixedFont());
+
+    memoryArea_->setNumMemoryLines(numMemoryLines());
 
     memoryArea_->updateLayout();
   }
@@ -101,7 +103,9 @@ setMemLineWidth(int i)
 
     setMemoryText();
 
-    memoryArea_->text()->setFont(getFixedFont());
+    memoryArea_->setFont(getFixedFont());
+
+    memoryArea_->setMemLineWidth(memLineWidth());
 
     memoryArea_->updateLayout();
   }
@@ -134,26 +138,53 @@ addWidgets()
 
   //---
 
+  // top for left and right frames (main interface)
   auto topFrame = CQUtil::makeWidget<CQTabSplit>("topFrame");
   topFrame->setOrientation(Qt::Horizontal);
 
-  auto bottomFrame = CQUtil::makeWidget<QFrame>("bottomFrame");
-
-  auto bottomLayout = CQUtil::makeLayout<QVBoxLayout>(bottomFrame, 2, 2);
+  // bottom for options and buttons
+  bottomFrame_  = CQUtil::makeWidget<QFrame>("bottomFrame");
+  bottomLayout_ = CQUtil::makeLayout<QVBoxLayout>(bottomFrame_, 2, 2);
 
   layout->addWidget(topFrame);
-  layout->addWidget(bottomFrame);
+  layout->addWidget(bottomFrame_);
 
-  //----
+  //------
 
-  auto leftFrame = CQUtil::makeWidget<CQTabSplit>("leftFrame");
-  leftFrame->setOrientation(Qt::Vertical);
-  leftFrame->setGrouped(true);
+  // left frame for memory and instructions
+  leftFrame_ = CQUtil::makeWidget<CQTabSplit>("leftFrame");
 
-  topFrame->addWidget(leftFrame, "Memory and Instructions");
+  leftFrame_->setOrientation(Qt::Vertical);
+  leftFrame_->setGrouped(true);
+
+  topFrame->addWidget(leftFrame_, "Memory and Instructions");
+
+  //---
+
+  // right frame for registers, flags, stack, traceback and breakpoints
+  rightFrame_ = CQUtil::makeWidget<CQTabSplit>("rightFrame");
+
+  rightFrame_->setOrientation(Qt::Vertical);
+  rightFrame_->setGrouped(true);
+
+  topFrame->addWidget(rightFrame_, "Registers, Flags, Stack, Traceback and Breakpoins");
 
   //--
 
+  topFrame->setSizes(QList<int>({INT_MAX, INT_MAX}));
+
+  //--
+
+  addLeftWidgets ();
+  addRightWidgets();
+
+  addBottomWidgets();
+}
+
+void
+CQ6502Dbg::
+addLeftWidgets()
+{
   memoryGroup_ = CQUtil::makeLabelWidget<QGroupBox>("Enabled", "memoryGroup");
   memoryGroup_->setCheckable(true);
 
@@ -164,9 +195,8 @@ addWidgets()
   memoryArea_ = new CQ6502MemArea(this);
 
   memoryGroupLayout->addWidget(memoryArea_);
-//memoryGroupLayout->addStretch();
 
-  leftFrame->addWidget(memoryGroup_, "Memory");
+  addLeftWidget(memoryGroup_, "Memory");
 
   //--
 
@@ -183,7 +213,6 @@ addWidgets()
   instructionsArea_ = new CQ6502InstArea(this);
 
   instructionsGroupLayout->addWidget(instructionsArea_);
-//instructionsGroupLayout->addStretch();
 
   instructionsLayout->addWidget(instructionsGroup_);
 
@@ -193,22 +222,20 @@ addWidgets()
 
   instructionsLayout->addWidget(opData_);
 
-  leftFrame->addWidget(instructionsFrame, "Instructions");
+  addLeftWidget(instructionsFrame, "Instructions");
+}
 
-  //------
+void
+CQ6502Dbg::
+addLeftWidget(QWidget *w, const QString &name)
+{
+  leftFrame_->addWidget(w, name);
+}
 
-  auto rightFrame = CQUtil::makeWidget<CQTabSplit>("rightFrame");
-  rightFrame->setOrientation(Qt::Vertical);
-  rightFrame->setGrouped(true);
-
-  topFrame->addWidget(rightFrame, "Registers, Flags, Stack, Traceback and Breakpoins");
-
-  //--
-
-  topFrame->setSizes(QList<int>({INT_MAX, INT_MAX}));
-
-  //---
-
+void
+CQ6502Dbg::
+addRightWidgets()
+{
   regWidgetData_.group = CQUtil::makeLabelWidget<QGroupBox>("Enabled", "registersGroup");
   regWidgetData_.group->setCheckable(true);
 
@@ -218,7 +245,7 @@ addWidgets()
 
   addRegistersWidgets();
 
-  rightFrame->addWidget(regWidgetData_.group, "Registers");
+  addRightWidget(regWidgetData_.group, "Registers");
 
   //--
 
@@ -231,7 +258,7 @@ addWidgets()
 
   addFlagsWidgets();
 
-  rightFrame->addWidget(flagsWidgetData_.group, "Flags");
+  addRightWidget(flagsWidgetData_.group, "Flags");
 
   //--
 
@@ -248,7 +275,7 @@ addWidgets()
 
   stackLayout->addWidget(stackText_);
 
-  rightFrame->addWidget(stackGroup_, "Stack");
+  addRightWidget(stackGroup_, "Stack");
 
   //--
 
@@ -265,7 +292,7 @@ addWidgets()
 
   traceBackLayout->addWidget(traceBack_);
 
-  rightFrame->addWidget(traceBackGroup_, "Traceback");
+  addRightWidget(traceBackGroup_, "Traceback");
 
   //--
 
@@ -279,12 +306,21 @@ addWidgets()
 
   addBreakpointWidgets();
 
-  rightFrame->addWidget(breakpointsWidgetData_.group, "Breakpoints");
+  addRightWidget(breakpointsWidgetData_.group, "Breakpoints");
+}
 
-  //-----
+void
+CQ6502Dbg::
+addRightWidget(QWidget *w, const QString &name)
+{
+  rightFrame_->addWidget(w, name);
+}
 
-  auto optionsFrame = CQUtil::makeWidget<QFrame>("optionsFrame");
-
+void
+CQ6502Dbg::
+addBottomWidgets()
+{
+  auto optionsFrame  = CQUtil::makeWidget<QFrame>("optionsFrame");
   auto optionsLayout = CQUtil::makeLayout<QHBoxLayout>(optionsFrame, 2, 2);
 
   //--
@@ -309,19 +345,18 @@ addWidgets()
 
   optionsLayout->addStretch(1);
 
-  bottomLayout->addWidget(optionsFrame);
+  bottomLayout_->addWidget(optionsFrame);
 
   //---
 
   buttonsToolbar_ = CQUtil::makeWidget<QFrame>("buttonsToolbar");
-
-  buttonsLayout_ = CQUtil::makeLayout<QHBoxLayout>(buttonsToolbar_, 2, 2);
+  buttonsLayout_  = CQUtil::makeLayout<QHBoxLayout>(buttonsToolbar_, 2, 2);
 
   buttonsLayout_->addStretch(1);
 
   addButtonsWidgets();
 
-  bottomLayout->addWidget(buttonsToolbar_);
+  bottomLayout_->addWidget(buttonsToolbar_);
 }
 
 void
@@ -466,66 +501,9 @@ setMemoryText()
 {
   cpu_->setDebugger(true);
 
-  uint len = 65536;
-
-  ushort numLines = len/memLineWidth();
-
-  if ((len % memLineWidth()) != 0) ++numLines;
-
-  std::string str;
-
-  uint pos1 = 0;
-
-  memoryArea_->text()->initLines();
-
-  for (ushort i = 0; i < numLines; ++i) {
-    setMemoryLine(pos1);
-
-    pos1 += memLineWidth();
-  }
+  memoryArea_->setMemoryText();
 
   cpu_->setDebugger(false);
-}
-
-void
-CQ6502Dbg::
-setMemoryLine(uint pos)
-{
-  std::string pcStr = CStrUtil::toHexString(pos, 4);
-
-  //-----
-
-  std::string memStr;
-
-  for (ushort j = 0; j < memLineWidth(); ++j) {
-    if (j > 0) memStr += " ";
-
-    memStr += CStrUtil::toHexString(cpu_->getByte(pos + j), 2);
-  }
-
-  std::string textStr;
-
-  for (ushort j = 0; j < memLineWidth(); ++j) {
-    uchar c = cpu_->getByte(pos + j);
-
-    textStr += getByteChar(c);
-  }
-
-  memoryArea_->text()->setLine(pos, pcStr, memStr, textStr);
-}
-
-std::string
-CQ6502Dbg::
-getByteChar(uchar c)
-{
-  std::string str;
-
-  if (c >= 0x20 && c < 0x7f)
-    str += c;
-  else
-    str += '.';
-
-  return str;
 }
 
 //---
@@ -576,6 +554,18 @@ updateBreakpoints()
     if (isInstructionsTrace())
       instructionsArea_->text()->addBreakPoint(addrs[i]);
   }
+}
+
+void
+CQ6502Dbg::
+updateMemArea()
+{
+  memoryArea_->setAddrColor      (addrColor      ());
+  memoryArea_->setMemDataColor   (memDataColor   ());
+  memoryArea_->setMemCharsColor  (memCharsColor  ());
+  memoryArea_->setCurrentColor   (currentColor   ());
+  memoryArea_->setReadOnlyBgColor(readOnlyBgColor());
+  memoryArea_->setScreenBgColor  (screenBgColor  ());
 }
 
 void
@@ -674,7 +664,7 @@ memChanged(ushort pos, ushort len)
   uint lineNum2 = pos2/memLineWidth();
 
   for (uint lineNum = lineNum1; lineNum <= lineNum2; ++lineNum)
-    setMemoryLine(memLineWidth()*lineNum);
+    memoryArea_->setMemoryLine(memLineWidth()*lineNum);
 
   memoryArea_->text()->update();
 
@@ -820,13 +810,23 @@ setTraceSlot()
 {
   bool checked = traceCheck_->isChecked();
 
-  memoryGroup_                ->setChecked(checked);
-  instructionsGroup_          ->setChecked(checked);
-  regWidgetData_.group        ->setChecked(checked);
-  flagsWidgetData_.group      ->setChecked(checked);
-  stackGroup_                 ->setChecked(checked);
-  traceBackGroup_             ->setChecked(checked);
-  breakpointsWidgetData_.group->setChecked(checked);
+  setTraced(checked);
+}
+
+void
+CQ6502Dbg::
+setTraced(bool traced)
+{
+  // left
+  memoryGroup_      ->setChecked(traced);
+  instructionsGroup_->setChecked(traced);
+
+  // right
+  regWidgetData_.group        ->setChecked(traced);
+  flagsWidgetData_.group      ->setChecked(traced);
+  stackGroup_                 ->setChecked(traced);
+  traceBackGroup_             ->setChecked(traced);
+  breakpointsWidgetData_.group->setChecked(traced);
 
   updateAll();
 }

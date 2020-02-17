@@ -40,9 +40,7 @@ CQ6502InstArea(CQ6502Dbg *dbg) :
   auto textArea       = CQUtil::makeWidget<QFrame>("textArea");
   auto textAreaLayout = CQUtil::makeLayout<QHBoxLayout>(textArea, 0, 0);
 
-  text_ = new CQ6502Inst(dbg_);
-
-  text_->setFont(dbg_->getFixedFont());
+  text_ = new CQ6502Inst(this);
 
   //---
 
@@ -65,6 +63,13 @@ CQ6502InstArea(CQ6502Dbg *dbg) :
 
 void
 CQ6502InstArea::
+setFont(const QFont &font)
+{
+  text()->setFont(font);
+}
+
+void
+CQ6502InstArea::
 updateText(ushort pc)
 {
   uint lineNum;
@@ -83,8 +88,8 @@ updateText(ushort pc)
 //------
 
 CQ6502Inst::
-CQ6502Inst(CQ6502Dbg *dbg) :
- QFrame(nullptr), dbg_(dbg)
+CQ6502Inst(CQ6502InstArea *area) :
+ QFrame(nullptr), area_(area)
 {
   setObjectName("inst");
 
@@ -111,8 +116,10 @@ updateSize()
 
     int nl = std::min(std::max(height()/charHeight, minLines()), maxLines());
 
-    if (nl != dbg_->getNumMemoryLines())
-      dbg_->setNumMemoryLines(nl);
+    auto *dbg = area_->dbg();
+
+    if (nl != dbg->numMemoryLines())
+      dbg->setNumMemoryLines(nl);
   }
   else {
     QSize s = sizeHint();
@@ -205,7 +212,8 @@ void
 CQ6502Inst::
 paintEvent(QPaintEvent *)
 {
-  auto cpu = dbg_->getCPU();
+  auto *dbg = area_->dbg();
+  auto *cpu = dbg->getCPU();
 
   uint pc = cpu->PC();
 
@@ -240,7 +248,7 @@ paintEvent(QPaintEvent *)
 
       if (line.pc() == pc) {
         if (isEnabled())
-          p.setPen(dbg_->currentColor());
+          p.setPen(dbg->currentColor());
 
         p.drawText(x, y, ">");
       }
@@ -248,21 +256,21 @@ paintEvent(QPaintEvent *)
       x += charWidth;
 
       if (isEnabled())
-        p.setPen(dbg_->addrColor());
+        p.setPen(dbg->addrColor());
 
       p.drawText(x, y, line.pcStr().c_str());
 
       x += w1 + charWidth;
 
       if (isEnabled())
-        p.setPen(dbg_->memDataColor());
+        p.setPen(dbg->memDataColor());
 
       p.drawText(x, y, line.codeStr().c_str());
 
       x += w2 + charWidth;
 
       if (isEnabled())
-        p.setPen(dbg_->memCharsColor());
+        p.setPen(dbg->memCharsColor());
 
       p.drawText(x, y, line.textStr().c_str());
     }
@@ -277,7 +285,8 @@ mouseDoubleClickEvent(QMouseEvent *e)
 {
   int iy = (e->pos().y() + yOffset_*charHeight_)/charHeight_;
 
-  auto cpu = dbg_->getCPU();
+  auto *dbg = area_->dbg();
+  auto *cpu = dbg->getCPU();
 
   cpu->setPC(getPCForLine(iy));
 
@@ -314,7 +323,8 @@ reloadSlot()
 {
   reload();
 
-  auto cpu = dbg_->getCPU();
+  auto *dbg = area_->dbg();
+  auto *cpu = dbg->getCPU();
 
   uint lineNum;
 
@@ -327,7 +337,8 @@ void
 CQ6502Inst::
 reload()
 {
-  auto cpu = dbg_->getCPU();
+  auto *dbg = area_->dbg();
+  auto *cpu = dbg->getCPU();
 
   cpu->setDebugger(true);
 
@@ -428,8 +439,10 @@ sizeHint() const
   int instructionsWidth = fm.width("0000  123456789012  AAAAAAAAAAAAAAAAAA");
   int charHeight        = fm.height();
 
+  auto *dbg = area_->dbg();
+
   int w = instructionsWidth + 32;
-  int h = charHeight*dbg_->getNumMemoryLines();
+  int h = charHeight*dbg->numMemoryLines();
 
   return QSize(w, h);
 }

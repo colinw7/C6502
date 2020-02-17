@@ -15,6 +15,8 @@ class CQ6502TraceBack;
 class CQ6502RegEdit;
 class C6502;
 
+class CQTabSplit;
+
 class QGroupBox;
 class QFrame;
 class QTextEdit;
@@ -33,7 +35,7 @@ class CQ6502Dbg : public QFrame {
   Q_OBJECT
 
   Q_PROPERTY(QFont  fixedFont         READ getFixedFont        WRITE setFixedFont)
-  Q_PROPERTY(int    numMemoryLines    READ getNumMemoryLines   WRITE setNumMemoryLines)
+  Q_PROPERTY(int    numMemoryLines    READ numMemoryLines      WRITE setNumMemoryLines)
   Q_PROPERTY(int    memLineWidth      READ memLineWidth        WRITE setMemLineWidth)
   Q_PROPERTY(bool   memoryTrace       READ isMemoryTrace       WRITE setMemoryTrace)
   Q_PROPERTY(bool   instructionsTrace READ isInstructionsTrace WRITE setInstructionsTrace)
@@ -60,9 +62,9 @@ class CQ6502Dbg : public QFrame {
   void setCPU(C6502 *cpu) { cpu_ = cpu; }
 
   const QFont &getFixedFont() const { return fixedFont_; }
-  void setFixedFont(const QFont &font);
+  virtual void setFixedFont(const QFont &font);
 
-  int getNumMemoryLines() const { return numMemoryLines_; }
+  int numMemoryLines() const { return numMemoryLines_; }
   void setNumMemoryLines(int i);
 
   int memLineWidth() const { return memLineWidth_; }
@@ -89,29 +91,33 @@ class CQ6502Dbg : public QFrame {
   bool isBreakpointsTrace() const { return breakpointsTrace_; }
   void setBreakpointsTrace(bool b) { breakpointsTrace_ = b; }
 
+  //---
+
   const QColor &addrColor() const { return addrColor_; }
-  void setAddrColor(const QColor &c) { addrColor_ = c; }
+  void setAddrColor(const QColor &c) { addrColor_ = c; updateMemArea(); }
 
   const QColor &memDataColor() const { return memDataColor_; }
-  void setMemDataColor(const QColor &c) { memDataColor_ = c; }
+  void setMemDataColor(const QColor &c) { memDataColor_ = c; updateMemArea(); }
 
   const QColor &memCharsColor() const { return memCharsColor_; }
-  void setMemCharsColor(const QColor &c) { memCharsColor_ = c; }
+  void setMemCharsColor(const QColor &c) { memCharsColor_ = c; updateMemArea(); }
 
   const QColor &currentColor() const { return currentColor_; }
-  void setCurrentColor(const QColor &c) { currentColor_ = c; }
+  void setCurrentColor(const QColor &c) { currentColor_ = c; updateMemArea(); }
 
   const QColor &readOnlyBgColor() const { return readOnlyBgColor_; }
-  void setReadOnlyBgColor(const QColor &c) { readOnlyBgColor_ = c; }
+  void setReadOnlyBgColor(const QColor &c) { readOnlyBgColor_ = c; updateMemArea(); }
 
   const QColor &screenBgColor() const { return screenBgColor_; }
-  void setScreenBgColor(const QColor &c) { screenBgColor_ = c; }
+  void setScreenBgColor(const QColor &c) { screenBgColor_ = c; updateMemArea(); }
 
   //---
 
   void updateRegisters();
 
   void updateBreakpoints();
+
+  void updateMemArea();
 
   //---
 
@@ -121,6 +127,14 @@ class CQ6502Dbg : public QFrame {
 
  protected:
   virtual void addWidgets();
+
+  virtual void addLeftWidgets ();
+  virtual void addLeftWidget(QWidget *w, const QString &name);
+
+  virtual void addRightWidgets();
+  virtual void addRightWidget(QWidget *w, const QString &name);
+
+  virtual void addBottomWidgets();
 
   virtual void addFlagsWidgets();
 
@@ -134,8 +148,6 @@ class CQ6502Dbg : public QFrame {
 
   void setMemoryText();
   void setMemoryLine(uint pos);
-
-  std::string getByteChar(uchar c);
 
   void updateInstructions();
 
@@ -153,6 +165,8 @@ class CQ6502Dbg : public QFrame {
 //void traceBackChanged() override;
 
   void breakpointsChanged();
+
+  virtual void setTraced(bool traced);
 
   void updateAll();
 
@@ -214,6 +228,11 @@ class CQ6502Dbg : public QFrame {
   QColor currentColor_    { 220,   0,   0 };
   QColor readOnlyBgColor_ { 216, 180, 180 };
   QColor screenBgColor_   { 180, 216, 180 };
+
+  QFrame*      bottomFrame_  { nullptr };
+  QVBoxLayout* bottomLayout_ { nullptr };
+  CQTabSplit*  leftFrame_    { nullptr };
+  CQTabSplit*  rightFrame_   { nullptr };
 
   QGroupBox*     memoryGroup_ { nullptr };
   CQ6502MemArea* memoryArea_  { nullptr };

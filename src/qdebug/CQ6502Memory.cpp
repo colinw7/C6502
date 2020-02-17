@@ -1,6 +1,7 @@
 #include <CQ6502Memory.h>
 #include <CQ6502Dbg.h>
 #include <CQUtil.h>
+#include <CStrUtil.h>
 
 #include <QCheckBox>
 #include <QScrollBar>
@@ -12,7 +13,62 @@
 
 CQ6502MemArea::
 CQ6502MemArea(CQ6502Dbg *dbg) :
- QFrame(nullptr), dbg_(dbg)
+ CQMemArea(nullptr), dbg_(dbg)
+{
+}
+
+uint
+CQ6502MemArea::
+getCurrentAddress() const
+{
+  auto *cpu = dbg()->getCPU();
+
+  return cpu->PC();
+}
+
+void
+CQ6502MemArea::
+setCurrentAddress(uint addr)
+{
+  auto *cpu = dbg()->getCPU();
+
+  cpu->setPC(addr);
+
+  //cpu->callRegChanged(C6502::Reg::PC);
+}
+
+bool
+CQ6502MemArea::
+isReadOnlyAddr(uint addr, uint len) const
+{
+  auto *cpu = dbg()->getCPU();
+
+  return cpu->isReadOnly(addr, len);
+}
+
+bool
+CQ6502MemArea::
+isScreenAddr(uint addr, uint len) const
+{
+  auto *cpu = dbg()->getCPU();
+
+  return cpu->isScreen(addr, len);
+}
+
+uchar
+CQ6502MemArea::
+getByte(uint addr) const
+{
+  auto *cpu = dbg()->getCPU();
+
+  return cpu->getByte(addr);
+}
+
+//------
+
+CQMemArea::
+CQMemArea(QWidget *parent) :
+ QFrame(parent)
 {
   setObjectName("memArea");
 
@@ -37,9 +93,7 @@ CQ6502MemArea(CQ6502Dbg *dbg) :
   auto textArea       = CQUtil::makeWidget<QFrame>("textArea");
   auto textAreaLayout = CQUtil::makeLayout<QHBoxLayout>(textArea, 0, 0);
 
-  text_ = new CQ6502Mem(dbg_);
-
-  text_->setFont(dbg_->getFixedFont());
+  text_ = new CQMemAreaText(this);
 
   //---
 
@@ -63,22 +117,29 @@ CQ6502MemArea(CQ6502Dbg *dbg) :
 }
 
 void
-CQ6502MemArea::
+CQMemArea::
+setFont(const QFont &font)
+{
+  text_->setFont(font);
+}
+
+void
+CQMemArea::
 updateLayout()
 {
-  vbar_->setPageStep  (dbg_->getNumMemoryLines());
+  vbar_->setPageStep  (numMemoryLines());
   vbar_->setSingleStep(1);
   vbar_->setRange     (0, text_->maxLines() - vbar_->pageStep());
 }
 
 void
-CQ6502MemArea::
+CQMemArea::
 updateText(ushort pc)
 {
   if (scrollCheck_->isChecked()) {
     int mem1 = vbar()->value();
-    int mem2 = mem1 + 20;
-    int mem  = pc/dbg_->memLineWidth();
+    int mem2 = mem1 + vbar()->pageStep();
+    int mem  = pc/memLineWidth();
 
     if (mem < mem1 || mem > mem2)
       vbar()->setValue(mem);
@@ -87,11 +148,70 @@ updateText(ushort pc)
   text()->update();
 }
 
+void
+CQMemArea::
+setMemoryText()
+{
+  ushort numLines = this->numLines();
+
+  std::string str;
+
+  uint pos1 = 0;
+
+  text()->initLines();
+
+  for (ushort i = 0; i < numLines; ++i) {
+    setMemoryLine(pos1);
+
+    pos1 += memLineWidth();
+  }
+}
+
+void
+CQMemArea::
+setMemoryLine(uint pos)
+{
+  auto getByteChar = [](uchar c) {
+    std::string str;
+
+    if (c >= 0x20 && c < 0x7f)
+      str += c;
+    else
+      str += '.';
+
+    return str;
+  };
+
+  //---
+
+  std::string pcStr = CStrUtil::toHexString(pos, 4);
+
+  //-----
+
+  std::string memStr;
+
+  for (ushort j = 0; j < memLineWidth(); ++j) {
+    if (j > 0) memStr += " ";
+
+    memStr += CStrUtil::toHexString(getByte(pos + j), 2);
+  }
+
+  std::string textStr;
+
+  for (ushort j = 0; j < memLineWidth(); ++j) {
+    uchar c = getByte(pos + j);
+
+    textStr += getByteChar(c);
+  }
+
+  text()->setLine(pos, pcStr, memStr, textStr);
+}
+
 //------
 
-CQ6502Mem::
-CQ6502Mem(CQ6502Dbg *dbg) :
- QFrame(nullptr), dbg_(dbg)
+CQMemAreaText::
+CQMemAreaText(CQMemArea *area) :
+ QFrame(nullptr), area_(area)
 {
   setObjectName("mem");
 
@@ -99,14 +219,16 @@ CQ6502Mem(CQ6502Dbg *dbg) :
 }
 
 int
-CQ6502Mem::
+CQMemAreaText::
 maxLines() const
 {
-  return 65536/dbg_->memLineWidth();
+  int lw = area_->memLineWidth();
+
+  return area_->memorySize()/lw;
 }
 
 void
-CQ6502Mem::
+CQMemAreaText::
 setFont(const QFont &font)
 {
   QWidget::setFont(font);
@@ -115,7 +237,7 @@ setFont(const QFont &font)
 }
 
 void
-CQ6502Mem::
+CQMemAreaText::
 updateSize()
 {
   if (resizable_) {
@@ -125,8 +247,11 @@ updateSize()
 
     int nl = std::min(std::max(height()/charHeight, minLines()), maxLines());
 
-    if (nl != dbg_->getNumMemoryLines())
-      dbg_->setNumMemoryLines(nl);
+    if (nl != area_->numMemoryLines()) {
+      area_->setNumMemoryLines(nl);
+
+      area_->updateLayout();
+    }
   }
   else {
     QSize s = sizeHint();
@@ -137,25 +262,27 @@ updateSize()
 }
 
 void
-CQ6502Mem::
+CQMemAreaText::
 initLines()
 {
   lines_.resize(maxLines());
 }
 
 void
-CQ6502Mem::
+CQMemAreaText::
 setLine(uint pc, const std::string &pcStr, const std::string &memStr, const std::string &textStr)
 {
-  uint lineNum = pc/dbg_->memLineWidth();
+  int lw = area_->memLineWidth();
+
+  uint lineNum = pc/lw;
 
   assert(lineNum < lines_.size());
 
-  lines_[lineNum] = CQ6502MemLine(pc, dbg_->memLineWidth(), pcStr, memStr, textStr);
+  lines_[lineNum] = CQMemAreaLine(pc, lw, pcStr, memStr, textStr);
 }
 
 void
-CQ6502Mem::
+CQMemAreaText::
 resizeEvent(QResizeEvent *)
 {
   if (resizable_)
@@ -163,7 +290,7 @@ resizeEvent(QResizeEvent *)
 }
 
 void
-CQ6502Mem::
+CQMemAreaText::
 contextMenuEvent(QContextMenuEvent *event)
 {
   QMenu *menu = CQUtil::makeWidget<QMenu>("menu");
@@ -178,12 +305,10 @@ contextMenuEvent(QContextMenuEvent *event)
 }
 
 void
-CQ6502Mem::
+CQMemAreaText::
 paintEvent(QPaintEvent *)
 {
-  C6502 *c6502 = dbg_->getCPU();
-
-  uint pc = c6502->PC();
+  uint pc = area_->getCurrentAddress();
 
   QPainter p(this);
 
@@ -199,7 +324,7 @@ paintEvent(QPaintEvent *)
 
   int charAscent = fm.ascent();
 
-  int lw = dbg_->memLineWidth();
+  int lw = area_->memLineWidth();
 
   int w1 =          4*charWidth_; // address (4 digits)
   int w2 =            charWidth_; // spacer (1 char)
@@ -216,6 +341,9 @@ paintEvent(QPaintEvent *)
     p.setPen(palette().color(QPalette::Disabled, QPalette::WindowText));
 
   for (const auto &line : lines_) {
+    if (! line.isValid())
+      continue;
+
     if (y >= ymin && y <= ymax) {
       int x = dx_;
 
@@ -223,21 +351,21 @@ paintEvent(QPaintEvent *)
       uint pc2 = pc1 + lw;
 
       if (isEnabled()) {
-        if      (c6502->isReadOnly(pc1, lw))
-          p.fillRect(QRect(x + w1 + w2, y, w3, charHeight_), dbg_->readOnlyBgColor());
-        else if (c6502->isScreen(pc1, lw))
-          p.fillRect(QRect(x + w1 + w2, y, w3, charHeight_), dbg_->screenBgColor());
+        QColor c;
+
+        if (getMemoryColor(pc1, lw, c))
+          p.fillRect(QRect(x + w1 + w2, y, w3, charHeight_), c);
       }
 
       if (isEnabled())
-        p.setPen(dbg_->addrColor());
+        p.setPen(area_->addrColor());
 
       p.drawText(x, ya, line.pcStr().c_str());
 
       x += w1 + w2;
 
       if (isEnabled())
-        p.setPen(dbg_->memDataColor());
+        p.setPen(area_->memDataColor());
 
       if (pc >= pc1 && pc < pc2) {
         int i1 = 3*(pc - pc1);
@@ -254,7 +382,7 @@ paintEvent(QPaintEvent *)
         p.drawText(x + w1 + w2, ya, rhs.c_str());
 
         if (isEnabled())
-          p.setPen(dbg_->currentColor());
+          p.setPen(area_->currentColor());
 
         p.drawText(x + w1, ya, mid.c_str());
       }
@@ -265,7 +393,7 @@ paintEvent(QPaintEvent *)
       x += w3 + w4;
 
       if (isEnabled())
-        p.setPen(dbg_->memCharsColor());
+        p.setPen(area_->memCharsColor());
 
       p.drawText(x, ya, line.textStr().c_str());
     }
@@ -275,27 +403,43 @@ paintEvent(QPaintEvent *)
   }
 }
 
-void
-CQ6502Mem::
-mouseDoubleClickEvent(QMouseEvent *e)
+bool
+CQMemAreaText::
+getMemoryColor(ushort addr, ushort len, QColor &c) const
 {
-  int ix = (e->pos().x() - dx_                 )/charWidth_ ;
-  int iy = (e->pos().y() + yOffset_*charHeight_)/charHeight_;
+  if (area_->getMemoryColor(addr, len, c))
+    return true;
 
-  if (ix < 4 || ix >= 28  ) return;
-  if (iy < 0 || iy >= 8192) return;
+  if      (area_->isReadOnlyAddr(addr, len))
+    c = area_->readOnlyBgColor();
+  else if (area_->isScreenAddr(addr, len))
+    c = area_->screenBgColor();
+  else
+    return false;
 
-  uint pc = int((ix - 4)/3) + iy*dbg_->memLineWidth();
-
-  C6502 *c6502 = dbg_->getCPU();
-
-  c6502->setPC(pc);
-
-  //c6502->callRegChanged(C6502::Reg::PC);
+  return true;
 }
 
 void
-CQ6502Mem::
+CQMemAreaText::
+mouseDoubleClickEvent(QMouseEvent *e)
+{
+  int nl = area_->numLines();
+  int lw = area_->memLineWidth();
+
+  int ix = (e->pos().x() - dx_                 )/charWidth_ - 4;
+  int iy = (e->pos().y() + yOffset_*charHeight_)/charHeight_;
+
+  if (ix < 0 || ix >= 3*lw) return;
+  if (iy < 0 || iy >= nl  ) return;
+
+  uint pc = int(ix/3) + iy*lw;
+
+  area_->setCurrentAddress(pc);
+}
+
+void
+CQMemAreaText::
 sliderSlot(int y)
 {
   yOffset_ = y;
@@ -304,7 +448,7 @@ sliderSlot(int y)
 }
 
 void
-CQ6502Mem::
+CQMemAreaText::
 dumpSlot()
 {
   FILE *fp = fopen("memory.txt", "w");
@@ -319,7 +463,7 @@ dumpSlot()
 }
 
 QSize
-CQ6502Mem::
+CQMemAreaText::
 sizeHint() const
 {
   QFontMetrics fm(font());
@@ -327,7 +471,7 @@ sizeHint() const
   int charWidth  = fm.width("X");
   int charHeight = fm.height();
 
-  int lw = dbg_->memLineWidth();
+  int lw = area_->memLineWidth();
 
   int memoryWidth = 0;
 
@@ -337,7 +481,7 @@ sizeHint() const
   memoryWidth +=   lw*charWidth; // <char> per byte
 
   int w = memoryWidth + 2*dx_;
-  int h = charHeight*dbg_->getNumMemoryLines();
+  int h = charHeight*area_->numMemoryLines();
 
   return QSize(w, h);
 }

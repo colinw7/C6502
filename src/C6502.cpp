@@ -39,7 +39,7 @@ resetNMI()
 {
   if (inNMI_) {
     std::cerr << "NMI in NMI\n";
-    setBreak(true);
+    rti();
   }
 
   inNMI_ = true;
@@ -82,7 +82,7 @@ resetIRQ()
 
   if (inIRQ_) {
     std::cerr << "IRQ in IRQ\n";
-    setBreak(true);
+    rti();
   }
 
   inIRQ_ = true;
@@ -110,7 +110,7 @@ resetBRK()
 {
   if (inBRK_) {
     std::cerr << "BRK in BRK\n";
-    setBreak(true);
+    rti();
   }
 
   inBRK_ = true;
@@ -134,6 +134,7 @@ rti()
   if (! inNMI_ && ! inIRQ_ && ! inBRK_) {
     std::cerr << "RTI not in NMI, IRQ or BRK \n";
     setBreak(true);
+    return;
   }
 
   inNMI_ = false;
@@ -1022,9 +1023,188 @@ step()
                         case 0xEB:                    case 0xEF:
               case 0xF2:case 0xF3:case 0xF4:case 0xF7:
               case 0xFA:case 0xFB:case 0xFC:          case 0xFF: {
-      std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
-      std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
-      setBreak(true);
+      if (isUnsupported()) {
+        switch (c) {
+          // KIL
+          case 0x02: case 0x12: case 0x22: case 0x32: case 0x42: case 0x52: case 0x62:
+          case 0x72: case 0x92: case 0xB2: case 0xD2: case 0xF2:
+            // TODO:
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+
+          // NOP
+          case 0x04:            case 0x44: case 0x64:
+            // zero page
+            readByte(); incT(3); break;
+          case 0x14: case 0x34: case 0x54: case 0x74: case 0xD4: case 0xF4:
+            // zero page x
+            readByte(); incT(4); break;
+          case 0x1A: case 0x3A: case 0x5A: case 0x7A: case 0xDA: case 0xFA:
+            incT(2); break;
+          case 0x0C:
+            // absolute
+            readWord(); incT(4); break;
+          case 0x1C: case 0x3C: case 0x5C: case 0x7C: case 0xDC: case 0xFC:
+            // absolute x
+            readWord(); incT(4); break;
+          case 0x80: case 0x82: case 0x89: case 0xC2: case 0xE2:
+            // immediate
+            readByte(); incT(2); break;
+
+          // SLO
+          case 0x03: case 0x07: case 0x0F:
+          case 0x13: case 0x17: case 0x1B: case 0x1F:
+            // TODO: asl + ora
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // RLA
+          case 0x23: case 0x27: case 0x2F:
+          case 0x33: case 0x37: case 0x3B: case 0x3F:
+            // TODO: rol + and
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // SRE
+          case 0x43: case 0x47: case 0x4F:
+          case 0x53: case 0x57: case 0x5B: case 0x5F:
+            // TODO: lsr + eor
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // RRA
+          case 0x63: case 0x67: case 0x6F:
+          case 0x73: case 0x77: case 0x7B: case 0x7F:
+            // TODO: ror + adc
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // SAX
+          case 0x83: case 0x87: case 0x8F: case 0x97:
+            // TODO: store A&X into {adr}
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // LAX
+          case 0xA3: case 0xA7: case 0xAB: case 0xAF:
+          case 0xB3: case 0xB7: case 0xBF:
+            // TODO: lda + ldx
+            // TODO: lda + tax (0xAB)
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // DCP
+          case 0xC3: case 0xC7: case 0xCF:
+          case 0xD3: case 0xD7: case 0xDB: case 0xDF:
+            // TODO: dec + cmp
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // ISC
+          case 0xE3: case 0xE7: case 0xEF:
+          case 0xF3: case 0xF7: case 0xFB: case 0xFF:
+            // TODO: inc + sbc
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // ANC
+          case 0x0B: case 0x2B:
+            // TODO: and + asl
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // ALR
+          case 0x4B:
+            // TODO: and + lsr
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // ARR
+          case 0x6B:
+            // TODO: and + ror
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // XAA
+          case 0x8B:
+            // TODO: txa + and
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // AXS
+          case 0xCB:
+            // TODO: a&x minus #{imm} into X
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // SBC
+          case 0xEB:
+            // TODO: sbc #{imm} + NOP
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // AHX
+          case 0x93: case 0x9F:
+            // TODO: store A&X&H into {adr}
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // SHY
+          case 0x9C:
+            // TODO: stores Y&H into {adr}
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // SHX
+          case 0x9E:
+            // TODO: stores X&H into {adr}
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // TAS
+          case 0x9B:
+            // TODO: stores A&X into S and A&X&H into {adr}
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          // LAS
+          case 0xBB:
+            // TODO: stores {adr}&S into A, X and S
+            std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+            std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+            setBreak(true);
+            break;
+          default:
+            assert(false);
+            break;
+        }
+      }
+      else {
+        std::cerr << "Invalid byte "; outputHex02(std::cerr, c);
+        std::cerr << " @ "; outputHex04(std::cerr, PC() - 1); std::cerr << "\n";
+        setBreak(true);
+      }
+
       break;
     }
 
@@ -2648,7 +2828,126 @@ disassembleAddr(ushort &addr, std::ostream &os) const
                         case 0xEB:                    case 0xEF:
               case 0xF2:case 0xF3:case 0xF4:case 0xF7:
               case 0xFA:case 0xFB:case 0xFC:          case 0xFF: {
-      outputHex02(os, c); os << " (" << "???" << ")\n";
+      if (isUnsupported()) {
+        switch (c) {
+          // KIL
+          case 0x02: case 0x12: case 0x22: case 0x32: case 0x42: case 0x52: case 0x62:
+          case 0x72: case 0x92: case 0xB2: case 0xD2: case 0xF2:
+            os << "KIL\n";
+            break;
+
+          // NOP
+          case 0x04:            case 0x44: case 0x64:
+            os << "NOP ", outputZeroPage(); os << "\n"; break;
+          case 0x14: case 0x34: case 0x54: case 0x74: case 0xD4: case 0xF4:
+            os << "NOP ", outputZeroPageX(); os << "\n"; break;
+          case 0x1A: case 0x3A: case 0x5A: case 0x7A: case 0xDA: case 0xFA:
+            os << "NOP\n";
+          case 0x0C:
+            os << "NOP ", outputAbsolute(); os << "\n"; break;
+          case 0x1C: case 0x3C: case 0x5C: case 0x7C: case 0xDC: case 0xFC:
+            os << "NOP ", outputAbsoluteX(); os << "\n"; break;
+          case 0x80: case 0x82: case 0x89: case 0xC2: case 0xE2:
+            os << "NOP ", outputImmediate(); os << "\n"; break;
+            break;
+
+          // SLO
+          case 0x03: case 0x07: case 0x0F:
+          case 0x13: case 0x17: case 0x1B: case 0x1F:
+            os << "SLO\n";
+            break;
+          // RLA
+          case 0x23: case 0x27: case 0x2F:
+          case 0x33: case 0x37: case 0x3B: case 0x3F:
+            os << "RLA\n";
+            break;
+          // SRE
+          case 0x43: case 0x47: case 0x4F:
+          case 0x53: case 0x57: case 0x5B: case 0x5F:
+            os << "SRE\n";
+            break;
+          // RRA
+          case 0x63: case 0x67: case 0x6F:
+          case 0x73: case 0x77: case 0x7B: case 0x7F:
+            os << "RRA\n";
+            break;
+          // SAX
+          case 0x83: case 0x87: case 0x8F: case 0x97:
+            os << "SAX\n";
+            break;
+
+          // LAX
+          case 0xA3: { os << "LAX "; outputIndirectX(); os << "\n"; break; }
+          case 0xA7: { os << "LAX "; outputZeroPage (); os << "\n"; break; }
+          case 0xAB: { os << "LAX "; outputImmediate(); os << "\n"; break; }
+          case 0xAF: { os << "LAX "; outputAbsolute (); os << "\n"; break; }
+          case 0xB3: { os << "LAX "; outputIndirectY(); os << "\n"; break; }
+          case 0xB7: { os << "LAX "; outputZeroPageY(); os << "\n"; break; }
+          case 0xBF: { os << "LAX "; outputAbsoluteY(); os << "\n"; break; }
+
+          // DCP
+          case 0xC3: case 0xC7: case 0xCF:
+          case 0xD3: case 0xD7: case 0xDB: case 0xDF:
+            os << "DCP\n";
+            break;
+          // ISC
+          case 0xE3: case 0xE7: case 0xEF:
+          case 0xF3: case 0xF7: case 0xFB: case 0xFF:
+            os << "ISC\n";
+            break;
+          // ANC
+          case 0x0B: case 0x2B:
+            os << "ANC\n";
+            break;
+          // ALR
+          case 0x4B:
+            os << "ALR\n";
+            break;
+          // ARR
+          case 0x6B:
+            os << "ARR\n";
+            break;
+          // XAA
+          case 0x8B:
+            os << "XAA\n";
+            break;
+          // AXS
+          case 0xCB:
+            os << "AXS\n";
+            break;
+          // SBC
+          case 0xEB:
+            os << "SBC\n";
+            break;
+          // AHX
+          case 0x93: case 0x9F:
+            os << "AHX\n";
+            break;
+          // SHY
+          case 0x9C:
+            os << "SHY\n";
+            break;
+          // SHX
+          case 0x9E:
+            os << "SHX\n";
+            break;
+          // TAS
+          case 0x9B:
+            os << "TAS\n";
+            break;
+          // LAS
+          case 0xBB:
+            os << "LAS\n";
+            break;
+          default:
+            assert(false);
+            break;
+        }
+      }
+      else {
+        outputHex02(os, c); os << " (" << "???" << ")\n";
+      }
+
       break;
     }
 
