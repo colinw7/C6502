@@ -118,7 +118,20 @@ setMemoryTrace(bool b)
   memoryTrace_ = b;
 
   if (memoryTrace_ && memoryDirty_) {
-    memChanged(0, 65535);
+    updateMemArea();
+  }
+}
+
+void
+CQ6502Dbg::
+setInstructionsTrace(bool b)
+{
+  instructionsTrace_ = b;
+
+  if (instructionsTrace_) {
+    ushort pc = cpu_->PC();
+
+    instructionsArea_->updateAddrText(pc);
   }
 }
 
@@ -198,7 +211,7 @@ addLeftWidgets()
 
   addLeftWidget(memoryGroup_, "Memory");
 
-  //--
+  //---
 
   auto instructionsFrame  = CQUtil::makeWidget<QFrame>("instructionsFrame");
   auto instructionsLayout = CQUtil::makeLayout<QVBoxLayout>(instructionsFrame, 2, 2);
@@ -215,6 +228,8 @@ addLeftWidgets()
   instructionsGroupLayout->addWidget(instructionsArea_);
 
   instructionsLayout->addWidget(instructionsGroup_);
+
+  //--
 
   opData_ = CQUtil::makeWidget<QLineEdit>("opData");
 
@@ -512,7 +527,8 @@ void
 CQ6502Dbg::
 updateInstructions()
 {
-  instructionsArea_->text()->reload();
+  if (isInstructionsTrace())
+    instructionsArea_->updateText();
 }
 
 void
@@ -536,7 +552,7 @@ updateBreakpoints()
   breakpointsWidgetData_.text->clear();
 
   if (isInstructionsTrace())
-    instructionsArea_->text()->clearBreakpoints();
+    instructionsArea_->clearBreakpoints();
 
   //----
 
@@ -552,7 +568,7 @@ updateBreakpoints()
     breakpointsWidgetData_.text->append(str.c_str());
 
     if (isInstructionsTrace())
-      instructionsArea_->text()->addBreakPoint(addrs[i]);
+      instructionsArea_->addBreakPoint(addrs[i]);
   }
 }
 
@@ -560,12 +576,16 @@ void
 CQ6502Dbg::
 updateMemArea()
 {
-  memoryArea_->setAddrColor      (addrColor      ());
-  memoryArea_->setMemDataColor   (memDataColor   ());
-  memoryArea_->setMemCharsColor  (memCharsColor  ());
-  memoryArea_->setCurrentColor   (currentColor   ());
-  memoryArea_->setReadOnlyBgColor(readOnlyBgColor());
-  memoryArea_->setScreenBgColor  (screenBgColor  ());
+  if (isMemoryTrace()) {
+    memoryArea_->setAddrColor      (addrColor      ());
+    memoryArea_->setMemDataColor   (memDataColor   ());
+    memoryArea_->setMemCharsColor  (memCharsColor  ());
+    memoryArea_->setCurrentColor   (currentColor   ());
+    memoryArea_->setReadOnlyBgColor(readOnlyBgColor());
+    memoryArea_->setScreenBgColor  (screenBgColor  ());
+
+    memChanged(0, 65535);
+  }
 }
 
 void
@@ -624,17 +644,7 @@ updateRegisters()
   //----
 
   if (isInstructionsTrace()) {
-#if 0
-    uint lineNum;
-
-    if (! instructionsArea_->text()->getLineForPC(pc, lineNum))
-      updateInstructions();
-
-    if (instructionsArea_->text()->getLineForPC(pc, lineNum))
-      instructionsArea_->vbar()->setValue(lineNum);
-#else
-    instructionsArea_->updateText(pc);
-#endif
+    instructionsArea_->updateAddrText(pc);
 
     //----
 
@@ -706,9 +716,9 @@ paintEvent(QPaintEvent *e)
 {
   if (updateNeeded_) {
     updateNeeded_ = false;
-    updateCount   = 0;
+    updateCount_  = 0;
 
-    updateAll();
+    updateAllActive();
   }
 
   QFrame::paintEvent(e);
@@ -857,9 +867,9 @@ updateSlot()
   if (traceCheck_->isChecked())
     doUpdate = true;
   else {
-    ++updateCount;
+    ++updateCount_;
 
-    if (updateCount > 1000)
+    if (updateCount_ > 10000)
       doUpdate = true;
   }
 
@@ -943,11 +953,32 @@ exitSlot()
 
 void
 CQ6502Dbg::
+updateAllActive()
+{
+  if (stackGroup_->isChecked())
+    updateStack();
+
+  if (traceBackGroup_->isChecked())
+    updateTraceBack();
+
+  updateMemArea();
+
+  updateInstructions();
+
+  updateRegisters();
+
+  updateBreakpoints();
+
+  update();
+}
+
+void
+CQ6502Dbg::
 updateAll()
 {
   updateRegisters();
 
-  memChanged(0, 65535);
+  updateMemArea();
 
   update();
 }

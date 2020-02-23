@@ -125,7 +125,11 @@ class CQ6502InstArea : public QFrame {
 
   void updateLayout();
 
-  void updateText(ushort pc);
+  void updateText();
+  void updateAddrText(ushort pc);
+
+  void clearBreakpoints();
+  void addBreakPoint(ushort addr);
 
  private:
   CQ6502Dbg*  dbg_         { nullptr };

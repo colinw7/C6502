@@ -70,19 +70,40 @@ setFont(const QFont &font)
 
 void
 CQ6502InstArea::
-updateText(ushort pc)
+updateText()
+{
+  text()->reload();
+}
+
+void
+CQ6502InstArea::
+updateAddrText(ushort pc)
 {
   uint lineNum;
 
   bool rc = text()->getLineForPC(pc, lineNum);
 
   if (! rc)
-    text()->reload();
+    updateText();
 
   if (scrollCheck_->isChecked()) {
     if (rc)
       vbar()->setValue(lineNum);
   }
+}
+
+void
+CQ6502InstArea::
+clearBreakpoints()
+{
+  text()->clearBreakpoints();
+}
+
+void
+CQ6502InstArea::
+addBreakPoint(ushort addr)
+{
+  text()->addBreakPoint(addr);
 }
 
 //------

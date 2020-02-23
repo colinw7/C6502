@@ -74,7 +74,7 @@ class CQ6502Dbg : public QFrame {
   void setMemoryTrace(bool b);
 
   bool isInstructionsTrace() const { return instructionsTrace_; }
-  void setInstructionsTrace(bool b) { instructionsTrace_ = b; }
+  void setInstructionsTrace(bool b);
 
   bool isRegistersTrace() const { return registersTrace_; }
   void setRegistersTrace(bool b) { registersTrace_ = b; }
@@ -168,6 +168,7 @@ class CQ6502Dbg : public QFrame {
 
   virtual void setTraced(bool traced);
 
+  void updateAllActive();
   void updateAll();
 
  public slots:
@@ -298,7 +299,7 @@ class CQ6502Dbg : public QFrame {
   QPushButton *exitButton_     { nullptr };
 
   bool updateNeeded_ { false };
-  int  updateCount   { 0 };
+  int  updateCount_  { 0 };
 };
 
 #endif
