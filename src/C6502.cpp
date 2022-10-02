@@ -465,7 +465,7 @@ step()
       schar d = readSByte();
 
       if (! Nflag()) {
-        setPC(PC() + d);
+        setPC(ushort(PC() + d));
 
         if (d == -2)
           illegalJump();
@@ -573,7 +573,7 @@ step()
       schar d = readSByte();
 
       if (Nflag()) {
-        setPC(PC() + d);
+        setPC(ushort(PC() + d));
 
         if (d == -2)
           illegalJump();
@@ -588,7 +588,7 @@ step()
       schar d = readSByte();
 
       if (! Vflag()) {
-        setPC(PC() + d);
+        setPC(ushort(PC() + d));
 
         if (d == -2)
           illegalJump();
@@ -603,7 +603,7 @@ step()
       schar d = readSByte();
 
       if (Vflag()) {
-        setPC(PC() + d);
+        setPC(ushort(PC() + d));
 
         if (d == -2)
           illegalJump();
@@ -618,7 +618,7 @@ step()
       schar d = readSByte();
 
       if (! Cflag()) {
-        setPC(PC() + d);
+        setPC(ushort(PC() + d));
 
         if (d == -2)
           illegalJump();
@@ -633,7 +633,7 @@ step()
       schar d = readSByte();
 
       if (Cflag()) {
-        setPC(PC() + d);
+        setPC(ushort(PC() + d));
 
         if (d == -2)
           illegalJump();
@@ -648,7 +648,7 @@ step()
       schar d = readSByte();
 
       if (! Zflag()) {
-        setPC(PC() + d);
+        setPC(ushort(PC() + d));
 
         if (d == -2)
           illegalJump();
@@ -663,7 +663,7 @@ step()
       schar d = readSByte();
 
       if (Zflag()) {
-        setPC(PC() + d);
+        setPC(ushort(PC() + d));
 
         if (d == -2)
           illegalJump();
@@ -1225,7 +1225,7 @@ next()
     return false;
 
   hasTmpBrk_ = true;
-  tmpBrk_    = PC() + len;
+  tmpBrk_    = ushort(PC() + len);
 
   cont();
 
@@ -1341,18 +1341,18 @@ assembleLine(ushort &addr, const std::string &line)
         ivalue = 0;
         ilen   = 0;
 
-        int ipos = 0;
-        int len1 = str.size();
+        uint ipos = 0;
+        auto len1 = str.size();
 
         if (ipos < len1 && str[ipos] == '$') {
           ++ipos;
 
           while (ipos < len1 && std::isxdigit(str[ipos])) {
-            char c1 = tolower(str[ipos]);
+            char c1 = char(tolower(str[ipos]));
 
             auto p = xchars.find(c1);
 
-            ivalue = ivalue*16 + int(p);
+            ivalue = ushort(ivalue*16 + int(p));
 
             ++ipos;
             ++ilen;
@@ -1360,11 +1360,11 @@ assembleLine(ushort &addr, const std::string &line)
         }
         else {
           while (ipos < len1 && std::isdigit(str[ipos])) {
-            char c1 = tolower(str[ipos]);
+            char c1 = char(tolower(str[ipos]));
 
             auto p = dchars.find(c1);
 
-            ivalue = ivalue*10 + int(p);
+            ivalue = ushort(ivalue*10 + int(p));
 
             ++ipos;
             ++ilen;
@@ -1397,7 +1397,7 @@ assembleLine(ushort &addr, const std::string &line)
         return false;
       }
 
-      setLabel(label, ivalue, ilen);
+      setLabel(label, ivalue, uchar(ilen));
 
       break;
     }
@@ -1458,11 +1458,11 @@ assembleLine(ushort &addr, const std::string &line)
           ushort value1 = parse2.getValue(vlen);
 
           if (value1 > 0xFF) {
-            setByte(addr++, (value1 & 0xFF00) >> 8);
-            setByte(addr++,  value1 & 0x00FF      );
+            setByte(addr++, uchar((value1 & 0xFF00) >> 8));
+            setByte(addr++, uchar( value1 & 0x00FF      ));
           }
           else
-            setByte(addr++, value1 & 0xFF);
+            setByte(addr++, uchar(value1 & 0xFF));
         }
         else {
           std::cerr << "Invalid DB value '" << word1 << "'\n";
@@ -1635,7 +1635,7 @@ bool
 C6502::
 assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
 {
-  auto addByte = [&](ushort c) { setByte(addr++, c & 0xFF); };
+  auto addByte = [&](ushort c) { setByte(addr++, uchar(c & 0xFF)); };
   auto addWord = [&](ushort c) { addByte(c & 0x00FF); addByte((c & 0xFF00) >> 8); };
 
   auto addRelative = [&](schar c) { setByte(addr++, c); };
@@ -1662,7 +1662,7 @@ assembleOp(ushort &addr, const std::string &opName, const std::string &arg)
     }
 
     if (vlen > 2)
-      rvalue = int(value) - int(addr) - 2;
+      rvalue = schar(int(value) - int(addr) - 2);
   }
 
   //---
@@ -2534,7 +2534,7 @@ disassembleAddr(ushort &addr, std::ostream &os) const
 
   auto outputRelative  = [&]() {
     schar c = readSByte(addr); os << "$"; outputSHex02(os, c);
-    os << " ; ($"; outputHex04(os, addr + c); os << ")";
+    os << " ; ($"; outputHex04(os, ushort(addr + c)); os << ")";
   };
 
   auto outputIndirect  = [&]() { os << "("; outputAbsolute(); os << ")"; };
@@ -2842,7 +2842,7 @@ disassembleAddr(ushort &addr, std::ostream &os) const
           case 0x14: case 0x34: case 0x54: case 0x74: case 0xD4: case 0xF4:
             os << "NOP ", outputZeroPageX(); os << "\n"; break;
           case 0x1A: case 0x3A: case 0x5A: case 0x7A: case 0xDA: case 0xFA:
-            os << "NOP\n";
+            os << "NOP\n"; break;
           case 0x0C:
             os << "NOP ", outputAbsolute(); os << "\n"; break;
           case 0x1C: case 0x3C: case 0x5C: case 0x7C: case 0xDC: case 0xFC:
@@ -3014,10 +3014,10 @@ printMemory(ushort addr, int len)
   int i = 0;
 
   for (int il = 0; il < nl; ++il) {
-    outputHex04(std::cout, addr + i); std::cout << ":";
+    outputHex04(std::cout, ushort(addr + i)); std::cout << ":";
 
     for (int i1 = 0; i1 < 16 && i < len; ++i1, ++i) {
-      std::cout << " "; outputHex02(std::cout, getByte(addr + i));
+      std::cout << " "; outputHex02(std::cout, getByte(ushort(addr + i)));
     }
 
     std::cout << "\n";
@@ -3031,11 +3031,11 @@ loadBin(const std::string &str)
   FILE *fp = fopen(str.c_str(), "r");
   if (! fp) return false;
 
-  int i = 0;
-  int c = 0;
+  uint i = 0;
+  int  c = 0;
 
   while ((c = fgetc(fp)) != EOF) {
-    setByte(i, c & 0xFF);
+    setByte(ushort(i), uchar(c & 0xFF));
 
     ++i;
 

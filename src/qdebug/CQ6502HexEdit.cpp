@@ -51,9 +51,9 @@ sizeHint() const
   QSize s = QLineEdit::sizeHint();
 
   if (size_ == 2)
-    s.setWidth(fm.width("00") + 6);
+    s.setWidth(fm.horizontalAdvance("00") + 6);
   else
-    s.setWidth(fm.width("0000") + 6);
+    s.setWidth(fm.horizontalAdvance("0000") + 6);
 
   return s;
 }

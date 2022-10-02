@@ -9,7 +9,7 @@ class CParser {
 
  public:
   CParser(const std::string &str) :
-   str_(str), len_(str.size()) {
+   str_(str), len_(uint(str.size())) {
   }
 
   bool eof() const { return pos_ >= len_; }
@@ -17,9 +17,9 @@ class CParser {
   bool isChar(char c) const { return (! eof() && str_[pos_] == c); }
 
   bool isChars(const std::string &str) const {
-    int len = str.size();
+    auto len = str.size();
 
-    for (int i = 0; i < len; ++i)
+    for (uint i = 0; i < len; ++i)
       if (pos_ + i >= len_ || str_[pos_ + i] != str[i])
         return false;
 
@@ -133,11 +133,11 @@ class CParser {
     ushort hvalue = 0;
 
     while (! eof() && isXDigit()) {
-      char c1 = std::tolower(getChar());
+      char c1 = char(std::tolower(getChar()));
 
       auto p = xchars.find(c1);
 
-      hvalue = hvalue*16 + int(p);
+      hvalue = ushort(hvalue*16 + int(p));
 
       skipChar();
 
@@ -157,7 +157,7 @@ class CParser {
     while (! eof() && isDigit()) {
       auto p = dchars.find(getChar());
 
-      dvalue = dvalue*10 + int(p);
+      dvalue = ushort(dvalue*10 + int(p));
 
       skipChar();
 
@@ -204,8 +204,8 @@ class CParser {
 
  private:
   std::string str_;
-  int         pos_ { 0 };
-  int         len_ { 0 };
+  uint        pos_ { 0 };
+  uint        len_ { 0 };
 };
 
 #endif

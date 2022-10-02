@@ -157,7 +157,7 @@ class C6502 {
   inline uchar readByte(ushort &addr) const { return getByte(addr++); }
 
   inline schar readSByte() { return readSByte(PC_); }
-  inline schar readSByte(ushort &addr) const { return (schar) readByte(addr); }
+  inline schar readSByte(ushort &addr) const { return schar(readByte(addr)); }
 
   inline ushort readWord() { return readWord(PC_); }
   inline ushort readWord(ushort &addr) const { return (readByte(addr) | (readByte(addr) << 8)); }
@@ -167,10 +167,11 @@ class C6502 {
   virtual uchar getByte(ushort addr) const { return mem_[addr]; }
   virtual void  setByte(ushort addr, uchar c) { mem_[addr] = c; memChanged(addr, 1); }
 
-  inline void setWord(ushort addr, ushort c) { setByte(addr, c & 0xFF); setByte(addr + 1, c >> 8); }
+  inline void setWord(ushort addr, ushort c) {
+    setByte(addr, uchar(c & 0xFF)); setByte(addr + 1, uchar(c >> 8)); }
 
   inline void pushByte(uchar  c) { setByte(0x0100 | SP(), c); setSP(SP() - 1); }
-  inline void pushWord(ushort a) { pushByte(a >> 8); pushByte(a & 0xFF); }
+  inline void pushWord(ushort a) { pushByte(uchar(a >> 8)); pushByte(uchar(a & 0xFF)); }
 
   inline uchar getSPByte(uchar sp) const { return getByte(0x0100 | sp); }
 
@@ -209,7 +210,7 @@ class C6502 {
   void addByte(ushort &addr, uchar c) { setByte(addr++, c); };
 
   void addWord(ushort &addr, ushort c) {
-    addByte(addr, c & 0x00FF); addByte(addr, (c & 0xFF00) >> 8);
+    addByte(addr, uchar(c & 0x00FF)); addByte(addr, uchar((c & 0xFF00) >> 8));
   }
 
   //------
@@ -294,17 +295,17 @@ class C6502 {
       ushort res = bcdAdd(A(), c, C);
       bool   V   = (res & 0x80);
 
-      setA(res); setNZCVFlags(C, V);
+      setA(uchar(res)); setNZCVFlags(C, V);
     }
     else {
       bool   C   = Cflag();
-      ushort res = A() + c + C;
+      ushort res = ushort(A() + c + C);
 
       C = res > 0xFF;
 
       bool V = ~(A() ^ c) & (A() ^ res) & 0x80;
 
-      setA(res); setNZCVFlags(C, V);
+      setA(uchar(res)); setNZCVFlags(C, V);
     }
   }
 
@@ -313,7 +314,7 @@ class C6502 {
     uchar t2 = (b & 0xF0) >> 4; uchar u2 = (b & 0x0F);
 
     uchar t = t1 + t2;
-    uchar u = u1 + u2 + c;
+    uchar u = uchar(u1 + u2 + c);
 
     if (u >= 10) {
       ++t; u -= 10;
@@ -369,8 +370,8 @@ class C6502 {
     schar t, u;
 
     if (a >= b + c) {
-      t = t1 - t2;
-      u = u1 - u2 - c;
+      t = schar(t1 - t2);
+      u = schar(u1 - u2 - c);
 
       if (u < 0) {
         --t; u += 10;
@@ -381,8 +382,8 @@ class C6502 {
       c = true;
     }
     else {
-      t = t2 - t1;
-      u = u2 - u1;
+      t = schar(t2 - t1);
+      u = schar(u2 - u1);
 
       if (u < 0) {
         --t; u += 10;
@@ -398,7 +399,7 @@ class C6502 {
       c = true;
     }
 
-    return (((t & 0x0F) << 4) | (u & 0x0F));
+    return uchar(((t & 0x0F) << 4) | (u & 0x0F));
   }
 
   //---

@@ -43,7 +43,7 @@ main(int argc, char **argv)
   std::string filename;
 
   bool   binary   = false;
-  bool   test     = false;
+//bool   test     = false;
   bool   assemble = false;
   ushort aorg     = 0x0000; // assemble org
   ushort org      = 0x0000; // disassemble, run, print org
@@ -68,9 +68,9 @@ main(int argc, char **argv)
       else if (arg == "-jump") {
         jump = true;
       }
-      else if (arg == "-test") {
-        test = true;
-      }
+//    else if (arg == "-test") {
+//      test = true;
+//    }
       else if (arg == "-a" || arg == "-assemble") {
         assemble = true;
       }

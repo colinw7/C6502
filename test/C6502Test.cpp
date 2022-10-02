@@ -36,14 +36,14 @@ main(int argc, char **argv)
         ++i;
 
         if (i < argc) {
-          org = atoi(argv[i]);
+          org = ushort(atoi(argv[i]));
         }
       }
       else if (arg == "l" || arg == "len") {
         ++i;
 
         if (i < argc) {
-          len = atoi(argv[i]);
+          len = ushort(atoi(argv[i]));
         }
       }
       else {

@@ -249,7 +249,7 @@ paintEvent(QPaintEvent *)
 
   charHeight_ = fm.height();
 
-  int charWidth  = fm.width(" ");
+  int charWidth  = fm.horizontalAdvance(" ");
   int charAscent = fm.ascent();
 
   int w1 =  4*charWidth; // address
@@ -457,7 +457,7 @@ sizeHint() const
 {
   QFontMetrics fm(font());
 
-  int instructionsWidth = fm.width("0000  123456789012  AAAAAAAAAAAAAAAAAA");
+  int instructionsWidth = fm.horizontalAdvance("0000  123456789012  AAAAAAAAAAAAAAAAAA");
   int charHeight        = fm.height();
 
   auto *dbg = area_->dbg();
